@@ -93,7 +93,7 @@ public:
 
     /**
      * @brief Adds a feature to an existing node, or adds a new node with an initial
-     * feature
+     *        feature
      * @param _ID         node id to add or to modify
      * @param _FeatureIdx index of feature to add to the given node
      */

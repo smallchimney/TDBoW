@@ -209,7 +209,7 @@ public:
      * @param  _A vector
      * @param  _B vector
      * @return score between vectors
-     * @note the vectors must be already sorted and normalized if necessary
+     * @note   the vectors must be already sorted and normalized if necessary
      */
     inline double score(const BowVector& _A, const BowVector& _B) const {
         return m_pScoringObj -> score(_A, _B);
@@ -223,15 +223,15 @@ public:
     void clear(bool _Alloc = false);
 
     /**
-     * @breif Stops those words whose weight is below minWeight.
-     * Words are stopped by setting their weight to 0. There are not returned
-     * later when transforming image features into vectors.
-     * Note that when using IDF or TF_IDF, the weight is the idf part, which
-     * is equivalent to -log(f), where f is the frequency of the word
-     * (f = Ni/N, Ni: number of training images where the word is present,
-     * N: number of training images).
-     * @param  number of minimum value
-     * @return number of words stopped now
+     * @breif  Stops those words whose weight is below minWeight.
+     *         Words are stopped by setting their weight to 0. There are not returned
+     *         later when transforming image features into vectors.
+     *         Note that when using IDF or TF_IDF, the weight is the idf part, which
+     *         is equivalent to -log(f), where f is the frequency of the word
+     *         (f = Ni/N, Ni: number of training images where the word is present,
+     *         N: number of training images).
+     * @param  _MinLimit minimum value
+     * @return           number of words stopped now
      */
     virtual size_t stopWords(WordValue _MinLimit);
 
@@ -516,14 +516,14 @@ protected:
     void _buildTree(const std::vector<DescriptorConstPtr>& _Descriptors);
 
     /**
-     * Create the words of the vocabulary once the tree has been built
+     * @breif Create the words of the vocabulary once the tree has been built
      */
     void _createWords();
 
     /**
-     * Sets the weights of the nodes of tree according to the given features.
-     * Before calling this function, the nodes and the words must be already
-     * created (by calling `_buildTree()` and `_createWords()`)
+     * @breif Sets the weights of the nodes of tree according to the given features.
+     *        Before calling this function, the nodes and the words must be already
+     *        created (by calling `_buildTree()` and `_createWords()`)
      * @param features
      */
     void _setNodeWeights(const ConstDataSet& _TrainingData);

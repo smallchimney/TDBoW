@@ -101,7 +101,7 @@ enum ScoringType {
 
 /**
  * @brief  Vector of words to represent images.
- *          Standard map with two thread-safety function,
+ *         Standard map with two thread-safety function,
  *         note that the implement is not complete thread_safety.
  *         Take care when using original std::map's methods
  *         in multiply threads context.
@@ -138,9 +138,9 @@ public:
 
 	/**
 	 * @brief Adds a value to a word value existing in the vector, or creates a new
-	 * word with the given value
+	 * 		  word with the given value
 	 * @param id word id to look for
-	 * @param v value to create the word with, or to add to existing word
+	 * @param v  value to create the word with, or to add to existing word
 	 */
 	void addWeight(WordId _ID, WordValue _Val);
 	

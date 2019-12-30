@@ -81,7 +81,7 @@ public:
 
     /**
      * @brief Creates a result with the given data
-     * @param _id entry id
+     * @param _id    entry id
      * @param _score score
      */
     Result(EntryId _id, WordValue _score): Id(_id), Score(_score) {}
@@ -90,104 +90,86 @@ public:
 
     /**
      * @brief  Compares the scores of two results
-     * @return true if this.score < r.score
+     * @return {@code true} if this.score < r.score
      */
-    bool operator<(const Result &r) const {
-        return this->Score < r.Score;
+    bool operator<(const Result& _R) const {
+        return this->Score < _R.Score;
     }
 
     /**
      * @brief  Compares the scores of two results
-     * @return true if this.score > r.score
+     * @return {@code true} if this.score <= r.score
      */
-    bool operator>(const Result &r) const {
-        return this->Score > r.Score;
+    bool operator<=(const Result& _R) const {
+        return this->Score <= _R.Score;
+    }
+
+    /**
+     * @brief  Compares the scores of two results
+     * @return {@code true} if this.score > r.score
+     */
+    bool operator>(const Result& _R) const {
+        return this->Score > _R.Score;
+    }
+
+    /**
+     * @brief  Compares the scores of two results
+     * @return {@code true} if this.score > r.score
+     */
+    bool operator>=(const Result& _R) const {
+        return this->Score >= _R.Score;
     }
 
     /**
      * @brief  Compares the entry id of the result
-     * @return true if this.id == id
+     * @return {@code true} if this.id == id
      */
-    bool operator==(EntryId id) const {
-        return this->Id == id;
+    bool operator==(const EntryId _Id) const {
+        return this->Id == _Id;
     }
 
     /**
      * @brief Compares the score of this entry with a given one
      * @param s score to compare with
-     * @return true if this score < s
+     * @return {@code true} if this score < s
      */
-    bool operator<(double s) const {
-        return this->Score < s;
+    bool operator<(const double _S) const {
+        return this->Score < _S;
+    }
+
+    /**
+     * @brief Compares the score of this entry with a given one
+     * @param _S score to compare with
+     * @return {@code true} if this score <= s
+     */
+    bool operator<=(const double _S) const {
+        return this->Score <= _S;
+    }
+
+    /**
+     * @brief Compares the score of this entry with a given one
+     * @param _S score to compare with
+     * @return {@code true} if this score > s
+     */
+    bool operator>(const double _S) const {
+        return this->Score > _S;
     }
 
     /**
      * @brief Compares the score of this entry with a given one
      * @param s score to compare with
-     * @return true if this score > s
+     * @return {@code true} if this score >= s
      */
-    bool operator>(double s) const {
-        return this->Score > s;
-    }
-
-    /**
-     * @brief Compares the score of two results
-     * @param a
-     * @param b
-     * @return true if a.Score > b.Score
-     */
-    static bool gt(const Result &a, const Result &b)
-    {
-        return a.Score > b.Score;
-    }
-
-    /**
-     * @brief Compares the scores of two results
-     * @param a
-     * @param b
-     * @return true if a.Score > b.Score
-     */
-    static bool ge(const Result &a, const Result &b) {
-        return a.Score > b.Score;
-    }
-
-    /**
-     * @brief Returns true if a.Score >= b.Score
-     * @param a
-     * @param b
-     * @return true if a.Score >= b.Score
-     */
-    static bool geq(const Result &a, const Result &b) {
-        return a.Score >= b.Score;
-    }
-
-    /**
-     * @brief Judge whether the a.score is greater than s
-     * @param a
-     * @param s
-     * @return true if a.Score >= s
-     */
-    static bool geqv(const Result &a, double s) {
-        return a.Score >= s;
-    }
-
-
-    /**
-     * @brief Judge whether the a.Id is less than b.Id
-     * @param a
-     * @param b
-     * @return true if a.Id < b.Id
-     */
-    static bool ltId(const Result &a, const Result &b) {
-        return a.Id < b.Id;
+    bool operator>=(const double _S) const {
+        return this->Score >= _S;
     }
 
     /**
      * @brief Prints a string version of the result
-     * @param os ostream
-     * @param ret Result to print
+     * @param _Out output stream
+     * @param _Ret Result to print
      */
-    friend std::ostream & operator<<(std::ostream& os, const Result& ret );
+    friend std::ostream & operator<<(std::ostream& _Out, const Result& _Ret);
 };
 
 /// Multiple results from a query
@@ -199,7 +181,7 @@ public:
      * @param os ostream
      * @param ret QueryResults to print
      */
-    friend std::ostream & operator<<(std::ostream& os, const QueryResults& ret );
+    friend std::ostream& operator<<(std::ostream& os, const QueryResults& ret );
 
     /**
      * @brief Saves a matlab file with the results

@@ -178,13 +178,13 @@ public:
      * @param  _Features      Query image's descriptor
      * @param  _BowVec        If set, the bow vector value will be filled.
      * @param  _MaxResults    Return size limit, {@code 0} stands no limit.
-     * @param  _MinCommon     Entry common words selected limit, {@code 0} stands no limit.
      * @param  _MaxId         Entry ID selected limit, {@code 0} stands no limit.
+     * @param  _MinCommon     Entry common words selected limit, {@code 0} stands no limit.
      * @return                Selected and sorted entries results with scores.
      */
     QueryResults query(const DescriptorArray& _Features,
                const BowVectorPtr& _BowVec = nullptr, unsigned _MaxResults = 1,
-               unsigned _MinCommon = 5, EntryId _MaxId = 0) const noexcept(false);
+               EntryId _MaxId = 0, unsigned _MinCommon = 5) const noexcept(false);
 
     /**
     * @brief  Queries the database with some features
@@ -192,13 +192,13 @@ public:
     * @param  _Features      Query image's descriptor
     * @param  _BowVec        If set, the bow vector value will be filled.
     * @param  _MaxResults    Return size limit, {@code 0} stands no limit.
-    * @param  _MinCommon     Entry common words selected limit, {@code 0} stands no limit.
     * @param  _MaxId         Entry ID selected limit, {@code 0} stands no limit.
+    * @param  _MinCommon     Entry common words selected limit, {@code 0} stands no limit.
     * @return                Selected and sorted entries results with scores.
     */
     QueryResults query(const Descriptors& _Features,
                        const BowVectorPtr& _BowVec = nullptr, unsigned _MaxResults = 1,
-                       unsigned _MinCommon = 5, EntryId _MaxId = 0) const noexcept(false);
+                       EntryId _MaxId = 0, unsigned _MinCommon = 5) const noexcept(false);
 
     /**
      * @breif  Queries the database with a vector
@@ -211,7 +211,7 @@ public:
      * @return                Selected and sorted entries results with scores.
      */
     QueryResults query(const BowVector& _Vec, unsigned _MaxResults = 1,
-                       unsigned _MinCommon = 5, EntryId _MaxId = 0) const noexcept(false);
+                       EntryId _MaxId = 0, unsigned _MinCommon = 5) const noexcept(false);
 
     /**
      * @breif Empties the database
@@ -283,11 +283,11 @@ public:
      */
     const FeatureVector& retrieveFeatures(const EntryId _ID) const noexcept(false) {
         if(!m_bUseDI) {
-            throw std::runtime_error(TDBOW_LOG("Direct index file not built."));
+            throw ParametersException(TDBOW_LOG("Direct index file not built."));
         }
         // Confirm the parameters, be careful when change the structure of database.
         if(_ID < 0 || _ID >= size()) {
-            throw std::runtime_error(TDBOW_LOG("Required entry not existed."));
+            throw OutOfRangeException(TDBOW_LOG("Required entry not existed."));
         }
         return m_aDFile[_ID];
     }
@@ -315,7 +315,7 @@ public:
      */
     const Vocabulary& getVocabulary() const noexcept(false) {
         if(!ready()) {
-            throw std::runtime_error(TDBOW_LOG("vocabulary is not ready yet."));
+            throw NotInitailizedException(TDBOW_LOG("vocabulary is not ready yet."));
         }
         return *m_pVocab;
     }
@@ -449,10 +449,10 @@ EntryId TemplatedDatabase<Vocabulary>::add(
         const DescriptorArray& _Features,
         const BowVectorPtr& _BowVec, const FeatureVectorPtr& _FeatVec) noexcept(false) {
     if(!ready()) {
-        throw std::runtime_error(TDBOW_LOG("vocabulary is not ready yet."));
+        throw NotInitailizedException(TDBOW_LOG("vocabulary is not ready yet."));
     }
     if(_Features.empty()) {
-        throw std::runtime_error("Try to add empty image.");
+        throw EmptyDataException(TDBOW_LOG("Try to add empty image."));
     }
     // BoW vector result is required, because it will be add into the database.
     BowVector ignored;
@@ -470,10 +470,10 @@ EntryId TemplatedDatabase<Vocabulary>::add(
         const Descriptors& _Features,
         const BowVectorPtr& _BowVec, const FeatureVectorPtr& _FeatVec) noexcept(false) {
     if(!ready()) {
-        throw std::runtime_error(TDBOW_LOG("vocabulary is not ready yet."));
+        throw NotInitailizedException(TDBOW_LOG("vocabulary is not ready yet."));
     }
     if(_Features.rows() == 0) {
-        throw std::runtime_error("Try to add empty image.");
+        throw EmptyDataException(TDBOW_LOG("Try to add empty image."));
     }
     // BoW vector result is required, because it will be add into the database.
     BowVector bowPlaceholder;
@@ -490,13 +490,13 @@ template <class Vocabulary>
 EntryId TemplatedDatabase<Vocabulary>::add(
         const BowVector& _BowVec, const FeatureVectorConstPtr& _FeatVec) noexcept(false) {
     if(!ready()) {
-        throw std::runtime_error(TDBOW_LOG("vocabulary is not ready yet."));
+        throw NotInitailizedException(TDBOW_LOG("vocabulary is not ready yet."));
     }
     auto entryID = static_cast<EntryId>(m_ulNumEntries++);
     // Update direct index file
     if(m_bUseDI) {
         if(_FeatVec == nullptr) {
-            throw std::runtime_error(TDBOW_LOG(
+            throw ParametersException(TDBOW_LOG(
                     "Current setting is \"USE_DI_ON\", "
                     "so the feature vector is required."));
         }
@@ -518,41 +518,41 @@ template <class Vocabulary>
 QueryResults TemplatedDatabase<Vocabulary>::query(
         const DescriptorArray& _Features,
         const BowVectorPtr& _BowVec, const unsigned _MaxResults,
-        const unsigned _MinCommon, EntryId _MaxId) const noexcept(false) {
+        const EntryId _MaxId, const unsigned _MinCommon) const noexcept(false) {
     if(!ready()) {
-        throw std::runtime_error(TDBOW_LOG("vocabulary is not ready yet."));
+        throw NotInitailizedException(TDBOW_LOG("vocabulary is not ready yet."));
     }
     // BoW vector result is required, because it will be used when query
     BowVector vec;
     auto& bowRet = _BowVec ? *_BowVec : vec;
     m_pVocab -> transform(_Features, bowRet);
-    return query(bowRet, _MaxResults, _MinCommon, _MaxId);
+    return query(bowRet, _MaxResults, _MaxId, _MinCommon);
 }
 
 template <class Vocabulary>
 QueryResults TemplatedDatabase<Vocabulary>::query(
         const Descriptors& _Features,
         const BowVectorPtr& _BowVec, const unsigned _MaxResults,
-        const unsigned _MinCommon, EntryId _MaxId) const noexcept(false) {
+        const EntryId _MaxId, const unsigned _MinCommon) const noexcept(false) {
     if(!ready()) {
-        throw std::runtime_error(TDBOW_LOG("vocabulary is not ready yet."));
+        throw NotInitailizedException(TDBOW_LOG("vocabulary is not ready yet."));
     }
     // BoW vector result is required, because it will be used when query
     BowVector vec;
     auto& bowRet = _BowVec ? *_BowVec : vec;
     m_pVocab -> transform(_Features, bowRet);
-    return query(bowRet, _MaxResults, _MinCommon, _MaxId);
+    return query(bowRet, _MaxResults, _MaxId, _MinCommon);
 }
 
 template <class Vocabulary>
 QueryResults TemplatedDatabase<Vocabulary>::query(
         const BowVector& _Vec, const unsigned _MaxResults,
-        const unsigned _MinCommon, EntryId _MaxId) const noexcept(false) {
+        const EntryId _MaxId, const unsigned _MinCommon) const noexcept(false) {
     if(!ready()) {
-        throw std::runtime_error(TDBOW_LOG("vocabulary is not ready yet."));
+        throw NotInitailizedException(TDBOW_LOG("vocabulary is not ready yet."));
     }
     return m_pVocab -> getScoringObj().score(
-            _Vec, m_aIFile, _MaxResults, _MinCommon, _MaxId);
+            _Vec, m_aIFile, _MaxResults, _MaxId, _MinCommon);
 }
 
 /* ********************************************************************************
@@ -565,7 +565,7 @@ TemplatedDatabase<Vocabulary>::updateParam(const bool _UseDI,
         const unsigned _DILevel) noexcept(false) {
     if(m_bUseDI != _UseDI || m_uiDILevel != _DILevel) {
         if(!empty()) {
-            throw std::runtime_error(TDBOW_LOG(
+            throw LogicException(TDBOW_LOG(
                     "The database is not empty, cannot change "
                     "the parameters."));
         }
@@ -602,7 +602,7 @@ template <class Vocabulary>
 void TemplatedDatabase<Vocabulary>::save(
         const std::string& _Filename, bool _Binary) const noexcept(false) {
     if(!m_pVocab) {
-        throw std::runtime_error(TDBOW_LOG("No active vocabulary."));
+        throw NotInitailizedException(TDBOW_LOG("No active vocabulary."));
     }
     m_pVocab -> save(_Filename, _Binary);
 }

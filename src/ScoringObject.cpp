@@ -65,7 +65,7 @@ WordValue GeneralScoring::score(
 
 QueryResults GeneralScoring::score(const BowVector& _Vec,
         const InvertedFile& _InvertedFile, const unsigned _MaxResults,
-        const unsigned _MinCommon, const EntryId _MaxId) const {
+        const EntryId _MaxId, const unsigned _MinCommon) const {
     std::map<EntryId, Record> scores;
     for(const auto& word : _Vec) {
         const auto &wordId = word.first;
@@ -108,8 +108,10 @@ QueryResults GeneralScoring::score(const BowVector& _Vec,
     }
     ret.shrink_to_fit();
     // Scale
-    for(auto& r : ret) {
-        m_cScaler(r.Score);
+    if(m_cScaler) {
+        for(auto& r : ret) {
+            m_cScaler(r.Score);
+        }
     }
     return ret;
 }

@@ -51,17 +51,19 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-11-20 10:37:21
    * Last Modified : smallchimney
-   * Modified Time : 2019-12-15 19:16:42
+   * Modified Time : 2019-12-29 15:05:15
 ************************************************************************* */
 #ifndef __ROCKAUTO_TDBOW_TEMPLATED_DESCRIPTOR_HPP__
 #define __ROCKAUTO_TDBOW_TEMPLATED_DESCRIPTOR_HPP__
+
+#include "traits.h"
+#include "Exception.h"
 
 #include <iostream>
 #include <vector>
 
 #include <eigen3/Eigen/Core>
 #include <boost/filesystem.hpp>
-#include "traits.h"
 
 namespace TDBoW {
 
@@ -206,8 +208,9 @@ public:
     static Descriptor _meanValue(
             const std::vector<DescriptorConstPtr>& _Descriptors,
             const MeanCallback& _Callback) noexcept(false) {
+        assert(_Callback != nullptr);
         if(_Descriptors.empty()) {
-            throw std::runtime_error(TDBOW_LOG("Cannot calculate mean value for empty set."));
+            throw EmptyDataException(TDBOW_LOG("Cannot calculate mean value for empty set."));
         }
         return _Callback(_Descriptors);
     }
@@ -225,8 +228,8 @@ public:
         } else if(std::is_same<TScalar, double_t>()) {
             return _meanValue(_Descriptors, valueMean);
         } else {
-            throw std::runtime_error(TDBOW_LOG("The scalar type is not support automatically, "
-                                     "a processing function must be explicitly specified."));
+            throw FormatException(TDBOW_LOG("The scalar type is not support automatically, "
+                                  "a processing function must be explicitly specified."));
         }
     }
     /**
@@ -240,6 +243,7 @@ public:
     static distance_type _distance(
             const Descriptor& _A, const Descriptor& _B,
             const DistanceCallback& _Callback) {
+        assert(_Callback != nullptr);
         return _Callback(_A, _B);
     }
     /**
@@ -257,8 +261,8 @@ public:
         } else if(std::is_same<TScalar, double_t>()) {
             return _distance(_A, _B, valueDistance);
         } else {
-            throw std::runtime_error(TDBOW_LOG("The scalar type is not support automatically, "
-                                     "a processing function must be explicitly specified."));
+            throw FormatException(TDBOW_LOG("The scalar type is not support automatically, "
+                                  "a processing function must be explicitly specified."));
         }
     }
     /**
@@ -348,7 +352,7 @@ typename TemplatedDescriptorUtil<TScalar, DescL>::DataSet&
 TemplatedDescriptorUtil<TScalar, DescL>::make_shared(
         DescriptorsSet& _Input, DataSet& _Output) {
     if(_Input.empty()) {
-        throw std::runtime_error(TDBOW_LOG("Empty dataset."));
+        throw FormatException(TDBOW_LOG("Empty dataset."));
     }
     _Output.clear();
     _Output.shrink_to_fit();
@@ -372,7 +376,7 @@ typename TemplatedDescriptorUtil<TScalar, DescL>::DataSet&
 TemplatedDescriptorUtil<TScalar, DescL>::make_shared(
         DescriptorsArray& _Input, DataSet& _Output) {
     if(_Input.empty()) {
-        throw std::runtime_error(TDBOW_LOG("Empty dataset."));
+        throw FormatException(TDBOW_LOG("Empty dataset."));
     }
     _Output.clear();
     _Output.shrink_to_fit();
@@ -447,7 +451,8 @@ TemplatedDescriptorUtil<TScalar, L>::binaryMean(const std::vector<DescriptorCons
 
 template<typename TScalar, size_t L>
 typename TemplatedDescriptorUtil<TScalar, L>::Descriptor
-TemplatedDescriptorUtil<TScalar, L>::valueMean(const std::vector<DescriptorConstPtr>& _Descriptors) {
+TemplatedDescriptorUtil<TScalar, L>::valueMean(
+        const std::vector<DescriptorConstPtr>& _Descriptors) {
     Descriptor mean = Descriptor::Zero();
     const auto num = static_cast<TScalar>(_Descriptors.size());
     for(const auto& p : _Descriptors) {
@@ -490,6 +495,10 @@ TemplatedDescriptorUtil<TScalar, L>::valueDistance(
     const auto& b = _B.row(0);
     double sqd = 0.;
     for(size_t i = 0; i < L; i++) {
+        if(std::isinf(a[i]) || std::isinf(b[i]) || std::isnan(a[i]) || std::isnan(b[i])) {
+            throw NanDataException(TDBOW_LOG(
+                    "Input descriptors must be finite."));
+        }
         sqd += pow(a[i] - b[i], 2);
     }
     return sqd;
@@ -546,7 +555,7 @@ void TemplatedDescriptorUtil<TScalar, L>::fromString(const std::string& _In, Des
         *p = fromHex(hex);
     }
     if(ss.fail()) {
-        throw std::runtime_error(TDBOW_LOG("Invalid data."));
+        throw NanDataException(TDBOW_LOG("Invalid data."));
     }
     ss.clear();
     ss.str("");
@@ -627,7 +636,7 @@ char int2hex(const unsigned& _Val) noexcept(false) {
     case 10: case 11: case 12: case 13: case 14: case 15:
         return static_cast<char>(_Val + 'A' - 10);
     default:
-        throw std::runtime_error(TDBOW_LOG("Invalid value."));
+        throw NanDataException(TDBOW_LOG("Invalid value."));
     }
 }
 
@@ -641,7 +650,7 @@ unsigned hex2int(const char& _Ch) noexcept(false) {
         case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
             return static_cast<unsigned>(_Ch - 'A' + 10);
         default:
-            throw std::runtime_error(TDBOW_LOG("Invalid value."));
+            throw NanDataException(TDBOW_LOG("Invalid value."));
     }
 }
 
@@ -655,8 +664,8 @@ std::string toHex(const uint8_t& _Data) noexcept {
 
 uint8_t fromHex(const std::string& _Str) noexcept(false) {
     if(_Str.length() != 2) {
-        throw std::runtime_error(TDBOW_LOG("Not TDBoW default descriptor"
-                                 "string(hex), please use custom fromString()"));
+        throw MethodNotMatchException(TDBOW_LOG(
+                "Not TDBoW default descriptor string(hex), please use custom fromString()"));
     }
     return static_cast<uint8_t>(hex2int(_Str[0]) * 16 + hex2int(_Str[1]));
 }

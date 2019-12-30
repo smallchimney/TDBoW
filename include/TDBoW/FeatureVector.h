@@ -51,7 +51,6 @@
  * Author: Dorian Galvez-Lopez
  * Description: feature vector
  * License: see the LICENSE.txt file
- *
  */
 
 #ifndef __ROCKAUTO_TDBOW_FEATURE_VECTOR_H__

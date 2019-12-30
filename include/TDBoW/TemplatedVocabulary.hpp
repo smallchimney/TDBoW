@@ -105,7 +105,7 @@ public:
     // Constructors
 
     /**
-     * Initiates an empty vocabulary
+     * @breif Initiates an empty vocabulary
      * @param _K          Branching factor
      * @param _L          Depth levels
      * @param _Weighting  Weighting type
@@ -125,6 +125,7 @@ public:
 
     /**
      * @breif Memory copy constructor is delete
+     * @param _Vocab  original vocabulary which will drop all the data
      */
     TemplatedVocabulary(TemplatedVocabulary<TScalar, DescL>& _Vocab) = delete;
 
@@ -146,7 +147,7 @@ public:
     // Build methods
 
     /**
-     * Creates a vocabulary from the training features with the already
+     * @breif Creates a vocabulary from the training features with the already
      * defined parameters
      * @param _TrainingData
      */
@@ -208,7 +209,7 @@ public:
      * @param  _A vector
      * @param  _B vector
      * @return score between vectors
-     * @note the vectors must be already sorted and normalized if necessary
+     * @note   the vectors must be already sorted and normalized if necessary
      */
     inline double score(const BowVector& _A, const BowVector& _B) const {
         return m_pScoringObj -> score(_A, _B);
@@ -222,14 +223,15 @@ public:
     void clear(bool _Alloc = false);
 
     /**
-     * Stops those words whose weight is below minWeight.
-     * Words are stopped by setting their weight to 0. There are not returned
-     * later when transforming image features into vectors.
-     * Note that when using IDF or TF_IDF, the weight is the idf part, which
-     * is equivalent to -log(f), where f is the frequency of the word
-     * (f = Ni/N, Ni: number of training images where the word is present,
-     * N: number of training images).
-     * @return number of words stopped now
+     * @breif  Stops those words whose weight is below minWeight.
+     *         Words are stopped by setting their weight to 0. There are not returned
+     *         later when transforming image features into vectors.
+     *         Note that when using IDF or TF_IDF, the weight is the idf part, which
+     *         is equivalent to -log(f), where f is the frequency of the word
+     *         (f = Ni/N, Ni: number of training images where the word is present,
+     *         N: number of training images).
+     * @param  _MinLimit minimum value
+     * @return           number of words stopped now
      */
     virtual size_t stopWords(WordValue _MinLimit);
 
@@ -514,14 +516,14 @@ protected:
     void _buildTree(const std::vector<DescriptorConstPtr>& _Descriptors);
 
     /**
-     * Create the words of the vocabulary once the tree has been built
+     * @breif Create the words of the vocabulary once the tree has been built
      */
     void _createWords();
 
     /**
-     * Sets the weights of the nodes of tree according to the given features.
-     * Before calling this function, the nodes and the words must be already
-     * created (by calling `_buildTree()` and `_createWords()`)
+     * @breif Sets the weights of the nodes of tree according to the given features.
+     *        Before calling this function, the nodes and the words must be already
+     *        created (by calling `_buildTree()` and `_createWords()`)
      * @param features
      */
     void _setNodeWeights(const ConstDataSet& _TrainingData);
@@ -566,7 +568,7 @@ TemplatedVocabulary<TScalar, DescL>::TemplatedVocabulary(
         const ScoringType _Scoring) noexcept(false)
         : m_uiK(_K), m_uiL(_L), m_pScoringObj(nullptr), m_pNodes(nullptr) {
     if(pow(_K, _L) >= std::numeric_limits<NodeId>::max()) {
-        throw std::runtime_error(TDBOW_LOG("Too large for the vocabulary scale."));
+        throw ParametersException(TDBOW_LOG("Too large for the vocabulary scale."));
     }
     setWeightingType(_Weighting);
     setScoringType(_Scoring);
@@ -771,7 +773,7 @@ NodeId TemplatedVocabulary<TScalar, DescL>::getParentNode(
         WordId _Wid, int _LevelsUp) const noexcept(false) {
     // confirm the parameters, be careful when change the structure of words.
     if(_LevelsUp < 0 || _Wid < 0 || _Wid >= m_aWords.size()) {
-       throw std::runtime_error(TDBOW_LOG("cannot find such node in this vocabulary."));
+       throw OutOfRangeException(TDBOW_LOG("cannot find such node in this vocabulary."));
     }
     NodeId ret = m_aWords[_Wid]; // node id
     while(_LevelsUp--) {
@@ -824,7 +826,7 @@ template <typename TScalar, size_t DescL>
 typename TemplatedVocabulary<TScalar, DescL>::Descriptor
 TemplatedVocabulary<TScalar, DescL>::getWord(WordId _Wid) const noexcept(false) {
     if(_Wid < 0 || _Wid >= m_aWords.size()) {
-        throw std::runtime_error(TDBOW_LOG("Required word ID(" << _Wid << ") "
+        throw OutOfRangeException(TDBOW_LOG("Required word ID(" << _Wid << ") "
                                  "is out of range(0..." << m_aWords.size() - 1 << ")."));
     }
     return (*m_pNodes)[m_aWords[_Wid]].descriptor;
@@ -834,7 +836,7 @@ template <typename TScalar, size_t DescL>
 WordValue TemplatedVocabulary<TScalar, DescL>::getWordWeight(
         WordId _Wid) const noexcept(false) {
     if(_Wid < 0 || _Wid >= m_aWords.size()) {
-        throw std::runtime_error(TDBOW_LOG("Required word ID(" << _Wid << ") "
+        throw OutOfRangeException(TDBOW_LOG("Required word ID(" << _Wid << ") "
                                  "is out of range(0..." << m_aWords.size() - 1 << ")."));
     }
     return (*m_pNodes)[m_aWords[_Wid]].weight;
@@ -845,7 +847,7 @@ TemplatedVocabulary<TScalar, DescL>&
 TemplatedVocabulary<TScalar, DescL>::setScoringType(ScoringType _Type) noexcept(false) {
     if(!m_pScoringObj || m_eScoring != _Type) {
         if(m_bInit) {
-            throw std::runtime_error(TDBOW_LOG("The vocabulary is "
+            throw LogicException(TDBOW_LOG("The vocabulary is "
                     "already created, must recreated to alter the scoring type"));
         }
         m_eScoring = _Type;
@@ -859,8 +861,8 @@ TemplatedVocabulary<TScalar, DescL>&
 TemplatedVocabulary<TScalar, DescL>::setWeightingType(WeightingType _Type) noexcept(false) {
     if(m_eWeighting != _Type) {
         if(m_bInit) {
-            throw std::runtime_error(TDBOW_LOG("The vocabulary is "
-                    "already created, must recreated to alter the scoring type"));
+            throw LogicException(TDBOW_LOG("The vocabulary is "
+                    "already created, must recreated to alter the weight type"));
         }
         m_eWeighting = _Type;
     }
@@ -912,7 +914,7 @@ void TemplatedVocabulary<TScalar, DescL>::load(
 #endif
     }
     if(!boost::filesystem::exists(file) || boost::filesystem::is_directory(file)) {
-        throw std::runtime_error(TDBOW_LOG(file.native() << " not exist or is a directory!"));
+        throw FileNotExistException(TDBOW_LOG(file.native() << " not exist or is a directory!"));
     }
     switch(_Mode) {
         case LoadMode::BINARY:
@@ -974,11 +976,11 @@ void TemplatedVocabulary<TScalar, DescL>::saveYAML(
         const boost::filesystem::path& _File,
         const std::function<std::string(Descriptor)>& _F) const noexcept(false) {
     if(m_pNodes == nullptr) {
-        throw std::runtime_error(TDBOW_LOG("No data to save."));
+        throw EmptyDataException(TDBOW_LOG("No data to save."));
     }
     std::ofstream out(_File.native());
     if(!out) {
-        throw std::runtime_error(TDBOW_LOG("Cannot open the output stream."));
+        throw FileNotOpenException(TDBOW_LOG("Cannot open the output stream."));
     }
     YAML::Emitter yaml(out);
     yaml << YAML::BeginDoc << YAML::BeginMap
@@ -1033,11 +1035,11 @@ template <typename TScalar, size_t DescL>
 void TemplatedVocabulary<TScalar, DescL>::saveBinary(
         const boost::filesystem::path& _File, bool _Compressed) const noexcept(false) {
     if(m_pNodes == nullptr) {
-        throw std::runtime_error(TDBOW_LOG("No data to save."));
+        throw EmptyDataException(TDBOW_LOG("No data to save."));
     }
     std::ofstream out(_File.native(), std::ios::out|std::ios::binary);
     if(!out) {
-        throw std::runtime_error(TDBOW_LOG(
+        throw FileNotOpenException(TDBOW_LOG(
                 "Could not open file :" << _File.native() << " for writing."));
     }
     write(out, _Compressed);
@@ -1097,10 +1099,8 @@ void TemplatedVocabulary<TScalar, DescL>::loadYAML(
             (*m_pNodes)[nodeId].word_id = wordId;
         }
     } catch(YAML::Exception& e) {
-        throw std::runtime_error(TDBOW_LOG(
+        throw FormatException(TDBOW_LOG(
                 "Vocabulary file may be invalid: " << e.what()));
-    } catch(std::runtime_error& e) {
-        throw std::runtime_error(TDBOW_LOG(e.what()));
     }
 }
 
@@ -1110,7 +1110,7 @@ void TemplatedVocabulary<TScalar, DescL>::loadBinary(
         const boost::filesystem::path& _File) {
     std::ifstream in(_File.native(), std::ios::in|std::ios::binary);
     if(!in) {
-        throw std::runtime_error(TDBOW_LOG(
+        throw FileNotOpenException(TDBOW_LOG(
                 "Could not open file :" << _File.native() << " for reading."));
     }
     read(in);
@@ -1202,7 +1202,7 @@ void TemplatedVocabulary<TScalar, DescL>::read(std::istream& _In) noexcept(false
     auto valL = DescL;  // generate the var with the same type of L
     _In.read((char*)&valL, sizeof(valL));
     if(idScalar != ID_SCALAR || valL != VALUE_L) {
-        throw std::runtime_error(TDBOW_LOG("The descriptor's format cannot be matched."));
+        throw FormatException(TDBOW_LOG("The descriptor's format cannot be matched."));
     }
     // Whether compressed
     bool compressed;
@@ -1308,7 +1308,7 @@ template <typename TScalar, size_t DescL>
 void TemplatedVocabulary<TScalar, DescL>::_getFeatures(
         const ConstDataSet& _TrainingData, std::vector<DescriptorConstPtr>& _Features) const noexcept(false) {
     if(_TrainingData.empty()) {
-        throw std::runtime_error(TDBOW_LOG("Empty dataset."));
+        throw EmptyDataException(TDBOW_LOG("Empty dataset."));
     }
     _Features.clear();
     _Features.shrink_to_fit();
@@ -1319,7 +1319,7 @@ void TemplatedVocabulary<TScalar, DescL>::_getFeatures(
         }
     }
     if(_Features.empty()) {
-        throw std::runtime_error(TDBOW_LOG("Empty dataset."));
+        throw EmptyDataException(TDBOW_LOG("Empty dataset."));
     }
 }
 
@@ -1328,8 +1328,8 @@ void TemplatedVocabulary<TScalar, DescL>::_transform_thread(
         const DescriptorArray& _Features, BowVector& _BowVec,
         const FeatureVectorPtr& _FeatVec, const unsigned _LevelsUp) const noexcept(false) {
     if(!ready()) {
-        throw std::runtime_error(TDBOW_LOG(
-                "The vocabulary is empty, must created before transform."));
+        throw NotInitailizedException(TDBOW_LOG(
+                "The vocabulary is empty, must be created before transform."));
     }
     _BowVec.clear();
     if(_FeatVec) {
@@ -1390,8 +1390,8 @@ template <typename TScalar, size_t DescL>
 NodeId TemplatedVocabulary<TScalar, DescL>::_transform(const Descriptor& _Feature,
         WordId& _WordId, WordValue& _Weight, const unsigned int _LevelsUp) const noexcept(false) {
     if(!ready()) {
-        throw std::runtime_error(TDBOW_LOG(
-                "The vocabulary is empty, must created before transform."));
+        throw NotInitailizedException(TDBOW_LOG(
+                "The vocabulary is empty, must be created before transform."));
     }
     // Propagate the feature down the tree
     auto requiredLevel = m_uiL >= _LevelsUp ? m_uiL - _LevelsUp : 0;

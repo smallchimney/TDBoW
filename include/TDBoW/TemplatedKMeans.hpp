@@ -19,7 +19,7 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-11-27 14:01:21
    * Last Modified : smallchimney
-   * Modified Time : 2019-12-14 21:56:40
+   * Modified Time : 2019-12-29 14:45:08
 ************************************************************************* */
 #ifndef __ROCKAUTO_TEMPLATED_K_MEANS_HPP__
 #define __ROCKAUTO_TEMPLATED_K_MEANS_HPP__
@@ -280,7 +280,8 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKMpp(const size_t& _K,
             return;
         }
         if(sum < 0) {
-            throw std::runtime_error(TDBOW_LOG("get negative sum, please check the `distance()`"));
+            throw MethodNotMatchException(TDBOW_LOG(
+                    "get negative sum, please check the `distance()`"));
         }
 
         auto limit = randomReal<distance_type>(0, sum);
@@ -347,7 +348,6 @@ Scalar randomInt(const Scalar& _Left, const Scalar& _Right) {
     uniform.param(param(_Left, _Right));
     return uniform(e);
 }
-
 
 }   // namespace TDBoW
 

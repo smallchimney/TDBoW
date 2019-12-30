@@ -66,7 +66,7 @@ namespace TDBoW {
 class GeneralScoring {
 public:
     /**
-     * Computes the score between two vectors. Vectors must be sorted and
+     * @brief Computes the score between two vectors. Vectors must be sorted and
      * normalized if necessary
      * @param v (in/out)
      * @param w (in/out)
@@ -80,18 +80,18 @@ public:
      * @param  _Vec           Vector to query
      * @param  _InvertedFile  Database.
      * @param  _MaxResults    Return size limit, {@code 0} stands no limit.
-     * @param  _MinCommon     Entry common words selected limit, {@code 0} stands no limit.
      * @param  _MaxId         Entry ID selected limit, {@code 0} stands no limit.
+     * @param  _MinCommon     Entry common words selected limit, {@code 0} stands no limit.
      * @return                Selected and sorted entries results with scores.
      */
     virtual QueryResults score(const BowVector& _Vec, const InvertedFile& _InvertedFile,
-            unsigned _MaxResults, unsigned _MinCommon, EntryId _MaxId) const final;
+            unsigned _MaxResults, EntryId _MaxId, unsigned _MinCommon) const final;
 
     /**
-     * Returns whether a vector must be normalized before scoring according
+     * @brief Returns whether a vector must be normalized before scoring according
      * to the scoring scheme
      * @param norm norm to use
-     * @return true iff must normalize
+     * @return true if must normalize
      */
     virtual bool mustNormalize(LNorm &norm) const = 0;
 

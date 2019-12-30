@@ -87,10 +87,10 @@ These classes are templated:
       ...
     };
 
-Two classes must be provided: `TScalar` is the data scalar type of the descriptor, and `L` is the
+Two parameters must be provided: `TScalar` is the data scalar type of the descriptor, and `L` is the
 length of descriptor in `TScalar`.
 
-For example, to work with cv::ORB descriptors, which contained by 256 bits (32 bytes). The descriptor
+For example, to work with `cv::ORB` descriptors, which contained by 256 bits (32 bytes). The descriptor
 is designed as `Eigen::Matrix<uint8_t, 1, 32, Eigen::RowMajor>`, so we set `TScalar` to `uint8_t`, and
 set `L` as `32`.
 

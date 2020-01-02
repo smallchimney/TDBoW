@@ -876,24 +876,25 @@ TemplatedVocabulary<TScalar, DescL>::setWeightingType(WeightingType _Type) noexc
 template <typename TScalar, size_t DescL>
 void TemplatedVocabulary<TScalar, DescL>::save(
         const std::string& _Filename, const bool _Binary) const noexcept(false) {
-    boost::filesystem::path file(_Filename);
+    using namespace boost::filesystem;
+    path file(_Filename);
     if(file.is_relative()) {
 #ifdef PKG_DIR
-        file = boost::filesystem::path(PKG_DIR)/"vocab"/_Filename;
+        file = path(PKG_DIR)/"vocab"/_Filename;
 #else
-        file = boost::filesystem::path("/tmp/vocab")/_Filename;
+        file = temp_directory_path()/"vocab"/_Filename;
 #endif
     }
     std::cout << "Trying to save vocabulary at: " << file.native() << std::endl;
     // Generate the directory
-    if(!boost::filesystem::exists(file.parent_path())) {
-        boost::filesystem::create_directories(file.parent_path());
+    if(!exists(file.parent_path())) {
+        create_directories(file.parent_path());
     }
     // Remove the existed file, since remove all contents of directory is
     // dangerous, will throw an exception when the input is a non-empty
     // directory.
-    if(boost::filesystem::exists(file)) {
-        boost::filesystem::remove(file);
+    if(exists(file)) {
+        remove(file);
     }
     if(_Binary) {
         saveBinary(file);
@@ -910,7 +911,7 @@ void TemplatedVocabulary<TScalar, DescL>::load(
 #ifdef PKG_DIR
         file = boost::filesystem::path(PKG_DIR)/"vocab"/_Filename;
 #else
-        file = boost::filesystem::path("/tmp/vocab")/_Filename;
+        file = boost::filesystem::temp_directory_path()/"vocab"/_Filename;
 #endif
     }
     if(!boost::filesystem::exists(file) || boost::filesystem::is_directory(file)) {

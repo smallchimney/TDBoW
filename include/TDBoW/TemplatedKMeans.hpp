@@ -1,5 +1,5 @@
 /**************************************************************************
- * Copyright (c) 2019 Chimney Xu. All Rights Reserve.
+ * Copyright (c) 2019-2020 Chimney Xu. All Rights Reserve.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-11-27 14:01:21
    * Last Modified : smallchimney
-   * Modified Time : 2019-12-29 14:45:08
+   * Modified Time : 2020-01-03 14:02:23
 ************************************************************************* */
 #ifndef __ROCKAUTO_TEMPLATED_K_MEANS_HPP__
 #define __ROCKAUTO_TEMPLATED_K_MEANS_HPP__
@@ -149,25 +149,34 @@ void TemplatedKMeans<DescriptorUtil>::process(
         DescriptorArray& _Centers,
         std::vector<std::vector<DescriptorConstPtr>>& _Clusters,
         InitMethods _Init, DistanceCallback _DistF, MeanCallback _MeanF) noexcept(false) {
-    _Centers.clear();_Centers.shrink_to_fit();
+    _Centers.clear(); _Centers.shrink_to_fit();
     _Centers.reserve(m_ulK);
-    _Clusters.clear();_Clusters.shrink_to_fit();
+    _Clusters.clear(); _Clusters.shrink_to_fit();
     _Clusters.reserve(m_ulK);
     // No need for run k-means
     if(_Descriptors.size() <= m_ulK) {
         // Trivial case: one cluster per feature
         _Clusters.assign(_Descriptors.size(), std::vector<DescriptorConstPtr>());
+#ifdef FOUND_OPENMP
+        _Centers.resize(m_ulK);
+        #pragma omp parallel for
+        for(size_t i = 0; i < _Descriptors.size(); i++) {
+            _Clusters[i].emplace_back(_Descriptors[i]);
+            _Centers[i] = *_Descriptors[i];
+        }
+#else
         for(size_t i = 0; i < _Descriptors.size(); i++) {
             _Clusters[i].emplace_back(_Descriptors[i]);
             _Centers.emplace_back(*_Descriptors[i]);
         }
+#endif
         return;
     }
     // select clusters and groups with k-means
     bool firstTime = true;
     // to check if clusters move after iterations
     std::vector<size_t> currentBelong, previousBelong;
-    distance_type loss; size_t iterCount = 0;
+    size_t iterCount = 0;
     while(true) {
         // 1. Calculate clusters
         if(firstTime) {
@@ -175,28 +184,33 @@ void TemplatedKMeans<DescriptorUtil>::process(
             _Init(m_ulK, _Descriptors, _Centers, _DistF, _MeanF);
             firstTime = false;
         } else {
-            // calculate cluster centres
-            for(size_t i = 0; i < _Centers.size(); i++) {
-                auto& cluster = _Clusters[i];
+            // re-run the k-means if any cluster is empty
+            for(const auto& cluster : _Clusters) {
                 if(cluster.empty()) {
                     firstTime = true;
-                    break;  // re-run the k-means
+                    break;
                 }
-                std::vector<DescriptorConstPtr> descSet(0);
-                descSet.reserve(cluster.size());
-                for(const auto& descriptor : cluster) {
-                    descSet.emplace_back(descriptor);
-                }
-                _Centers[i] = _MeanF(descSet);
             }
-            if(firstTime)continue;
+            if(firstTime) {
+                continue;
+            }
+            // calculate cluster centres
+#ifdef FOUND_OPENMP
+            #pragma omp parallel for
+#endif
+            for(size_t i = 0; i < _Centers.size(); i++) {
+                auto& cluster = _Clusters[i];
+                _Centers[i] = _MeanF(cluster);
+            }
         }
 
         // 2. Associate features with clusters
         // calculate distances to cluster centers
         _Clusters.assign(_Centers.size(), std::vector<DescriptorConstPtr>());
         currentBelong.resize(_Descriptors.size());
-        loss = 0;
+#ifdef FOUND_OPENMP
+        #pragma omp parallel for
+#endif
         for(size_t i = 0; i < _Descriptors.size(); i++) {
             const auto& descriptor = *_Descriptors[i];
             distance_type min = _DistF(descriptor, _Centers[0]);
@@ -208,9 +222,11 @@ void TemplatedKMeans<DescriptorUtil>::process(
                     minIdx = idx;
                 }
             }
-            loss += min;
-            _Clusters[minIdx].emplace_back(_Descriptors[i]);
             currentBelong[i] = minIdx;
+        }
+        for(size_t i = 0; i < _Descriptors.size(); i++) {
+            const auto idx = currentBelong[i];
+            _Clusters[idx].emplace_back(_Descriptors[i]);
         }
         iterCount++;
         // k-means++ ensures all the clusters has any feature associated with them
@@ -227,10 +243,21 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKM(const size_t& _K,
         DescriptorArray& _Centers, DistanceCallback _F, MeanCallback _M) {
     // Random K seeds
     _Centers.clear();
+    _Centers.shrink_to_fit();
+
+    std::vector<size_t> choices(_Descriptors.size());
+#ifdef FOUND_OPENMP
+    #pragma omp parallel for
+#endif
+    for(size_t i = 1; i < _Descriptors.size(); i++) {
+        choices[i] = i;
+    }
     _Centers.reserve(_K);
     for(size_t i = 0; i < _K; i++) {
-        auto featureIdx = randomInt<size_t>(0, _Descriptors.size() - 1);
-        _Centers.emplace_back(*_Descriptors[featureIdx]);
+        auto idx = randomInt<size_t>(0, choices.size() - 1);
+        _Centers.emplace_back(std::make_shared<Descriptor>(*_Descriptors[choices[idx]]));
+        choices[idx] = choices.back();
+        choices.pop_back();
     }
 }
 
@@ -257,15 +284,26 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKMpp(const size_t& _K,
     _Centers.emplace_back(*_Descriptors[featureIdx]);
 
     // compute the initial distances
+#ifdef FOUND_OPENMP
+    std::vector<distance_type> minDist(_Descriptors.size());
+    #pragma omp parallel for
+    for(size_t i = 0; i < _Descriptors.size(); i++) {
+        minDist[i] = _F(*_Descriptors[i], _Centers.back());
+    }
+#else
     std::vector<distance_type> minDist(0);
     minDist.reserve(_Descriptors.size());
     for(const auto& descriptor : _Descriptors) {
         minDist.emplace_back(_F(*descriptor, _Centers.back()));
     }
+#endif
 
     while(_Centers.size() < _K) {
         // 2.
         const auto& center = _Centers.back();
+#ifdef FOUND_OPENMP
+        #pragma omp parallel for
+#endif
         for(size_t i = 0; i < _Descriptors.size(); i++) {
             auto& distance = minDist[i];
             if(distance > 0) {
@@ -306,19 +344,25 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKM2nd(const size_t& _K,
     }
 
     std::vector<size_t> choices(_Descriptors.size());
+#ifdef FOUND_OPENMP
+    #pragma omp parallel for
+#endif
     for(size_t i = 1; i < _Descriptors.size(); i++) {
         choices[i] = i;
     }
     std::vector<DescriptorConstPtr> seeds;
     seeds.reserve(LIMIT);
+    std::vector<size_t> indices;
     for(size_t i = 0; i < LIMIT; i++) {
         auto idx = randomInt<size_t>(0, choices.size() - 1);
         seeds.emplace_back(std::make_shared<Descriptor>(*_Descriptors[choices[idx]]));
+        indices.emplace_back(choices[idx]);
         choices[idx] = choices.back();
         choices.pop_back();
     }
     std::vector<std::vector<DescriptorConstPtr>> ignored;
-    TemplatedKMeans<DescriptorUtil>(_K).process(seeds, _Centers, ignored, initiateClustersKMpp, _F, _M);
+    TemplatedKMeans<DescriptorUtil>(_K).process(
+            seeds, _Centers, ignored, initiateClustersKMpp, _F, _M);
 }
 
 /* ********************************************************************************

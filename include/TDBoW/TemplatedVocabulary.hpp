@@ -1,5 +1,5 @@
 /**************************************************************************
- * Copyright (c) 2019 Chimney Xu. All Rights Reserve.
+ * Copyright (c) 2019-2020 Chimney Xu. All Rights Reserve.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1313,7 +1313,9 @@ void TemplatedVocabulary<TScalar, DescL>::_getFeatures(
     }
     _Features.clear();
     _Features.shrink_to_fit();
-    _Features.reserve(_TrainingData.size() * _TrainingData[0].size());
+    const auto reserveSize = std::min(_Features.max_size(),
+            _TrainingData.size() * _TrainingData[0].size());
+    _Features.reserve(reserveSize);
     for(const auto& image : _TrainingData) {
         for(const auto& feature : image) {
             _Features.emplace_back(feature);

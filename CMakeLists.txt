@@ -65,6 +65,14 @@ endif()
 set(EXTRA_INCS ${Boost_INCLUDE_DIRS} ${EXTRA_INCS})
 set(EXTRA_LIBS ${Boost_LIBRARIES}    ${EXTRA_LIBS})
 
+find_package(OpenMP QUIET)
+if(OPENMP_FOUND)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  add_definitions(-DFOUND_OPENMP)
+  message(STATUS "OpenMP Founded")
+endif()
+
 ## Setting the extra libraries
 
 ## QuickLZ lib is installed

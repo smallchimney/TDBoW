@@ -19,7 +19,7 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-11-22 22:22:49
    * Last Modified : smallchimney
-   * Modified Time : 2019-12-13 13:41:32
+   * Modified Time : 2020-01-03 21:47:40
 ************************************************************************* */
 #ifndef __ROCKAUTO_TDBOW_TRAITS_H__
 #define __ROCKAUTO_TDBOW_TRAITS_H__
@@ -63,7 +63,7 @@ public:
     static constexpr type_id id() { return -1; }
 };
 
-#define __TYPE_TRAITS(TYPE, BRIEF, VALUE)\
+#define __TDBOW_TYPE_TRAITS(TYPE, BRIEF, VALUE)\
 template <>\
 class type_traits<TYPE>: public basic_traits<TYPE> {\
 public:\
@@ -72,23 +72,23 @@ public:\
     static constexpr type_id id() { return VALUE; }\
 }
 
-__TYPE_TRAITS(uint8_t , "unsigned char(8 bits)" , 0);
-__TYPE_TRAITS(uint16_t, "unsigned char(16 bits)", 1);
-__TYPE_TRAITS(uint32_t, "unsigned char(32 bits)", 2);
-__TYPE_TRAITS(uint64_t, "unsigned char(64 bits)", 3);
-__TYPE_TRAITS(int8_t  , "signed char(8 bits)"   , 4);
-__TYPE_TRAITS(int16_t , "signed char(16 bits)"  , 5);
-__TYPE_TRAITS(int32_t , "signed char(16 bits)"  , 6);
-__TYPE_TRAITS(int64_t , "signed char(16 bits)"  , 7);
+__TDBOW_TYPE_TRAITS(uint8_t , "unsigned char(8 bits)" , 0);
+__TDBOW_TYPE_TRAITS(uint16_t, "unsigned char(16 bits)", 1);
+__TDBOW_TYPE_TRAITS(uint32_t, "unsigned char(32 bits)", 2);
+__TDBOW_TYPE_TRAITS(uint64_t, "unsigned char(64 bits)", 3);
+__TDBOW_TYPE_TRAITS(int8_t  , "signed char(8 bits)"   , 4);
+__TDBOW_TYPE_TRAITS(int16_t , "signed char(16 bits)"  , 5);
+__TDBOW_TYPE_TRAITS(int32_t , "signed char(16 bits)"  , 6);
+__TDBOW_TYPE_TRAITS(int64_t , "signed char(16 bits)"  , 7);
 // {@code long long int} will be discarded, because in some platform
 // it might conflict with {@code int64_t}
-__TYPE_TRAITS(bool    , "boolean"               , 8);
-__TYPE_TRAITS(float   , "float"                 , 9);
-__TYPE_TRAITS(double  , "double"                , 10);
+__TDBOW_TYPE_TRAITS(bool    , "boolean"               , 8);
+__TDBOW_TYPE_TRAITS(float   , "float"                 , 9);
+__TDBOW_TYPE_TRAITS(double  , "double"                , 10);
 // only fixed size type is support,
 // so avoid use type like std::string or std::vector
 
-#undef __TYPE_TRAITS
+#undef __TDBOW_TYPE_TRAITS
 
 }}  // namespace TDBow::traits
 

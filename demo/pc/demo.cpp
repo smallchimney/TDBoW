@@ -19,7 +19,7 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-12-05 16:55:11
    * Last Modified : smallchimney
-   * Modified Time : 2019-12-06 13:37:25
+   * Modified Time : 2020-01-03 17:34:06
 ************************************************************************* */
 // TDBoW and template typedef
 #include <TDBoW/PCBridge.h>
@@ -161,12 +161,7 @@ void testVocabCreation(const ConstDataSet& _DataSet,
         const DescriptorsSet& _Features, const std::vector<std::string>& _Names) {
     // branching factor and depth levels
     using namespace TDBoW;
-    const int k = 6;
-    const int L = 3;
-    const WeightingType weight = TF_IDF;
-    const ScoringType score = L1_NORM;
-    Vocabulary voc(k, L, weight, score);
-
+    Vocabulary voc;
     assert(_Names.size() == _Features.size());
     size_t PRINT_LEN = 0;
     for(const auto& name : _Names) {
@@ -179,8 +174,7 @@ void testVocabCreation(const ConstDataSet& _DataSet,
         count += image.size();
     }
     cout << "Features size: " << count << endl;
-
-    cout << "Creating a small " << k << "^" << L << " vocabulary..." << endl;
+    cout << "Creating a small vocabulary..." << endl;
     using namespace std::chrono;
     auto start = system_clock::now();
     voc.create(_DataSet);
@@ -188,8 +182,7 @@ void testVocabCreation(const ConstDataSet& _DataSet,
     std::cout << "Spent time: " << duration_cast<milliseconds>(end - start).count() << " ms." << endl;
     cout << "... done!" << endl;
 
-    voc.stopWords(0.5);
-    cout << "Vocabulary stop words by weight: 0.5" << endl;
+    cout << "Vocabulary stop words by percent: 10% (" << voc.stopPercent(10) << " words)" << endl;
 
     cout << "Vocabulary information: " << endl
          << voc << endl << endl;

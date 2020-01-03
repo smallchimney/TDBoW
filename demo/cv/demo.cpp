@@ -107,20 +107,13 @@ DescriptorsArray loadFeatures() {
 
 void testVocabCreation(const ConstDataSet& _DataSet, const DescriptorsArray& _Features) {
     using namespace TDBoW;
-    // branching factor and depth levels
-    const int k = 9;
-    const int L = 3;
-    const WeightingType weight = TF_IDF;
-    const ScoringType score = L1_NORM;
-    Vocabulary voc(k, L, weight, score);
-
+    Vocabulary voc;
     size_t count = 0;
     for(const auto& image : _DataSet) {
         count += image.size();
     }
     cout << "Features size: " << count << endl;
-
-    cout << "Creating a small " << k << "^" << L << " vocabulary..." << endl;
+    cout << "Creating a small vocabulary..." << endl;
     using namespace std::chrono;
     auto start = system_clock::now();
     voc.create(_DataSet);

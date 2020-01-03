@@ -158,7 +158,7 @@ void TemplatedKMeans<DescriptorUtil>::process(
         // Trivial case: one cluster per feature
         _Clusters.assign(_Descriptors.size(), std::vector<DescriptorConstPtr>());
 #ifdef FOUND_OPENMP
-        _Centers.resize(m_ulK);
+        _Centers.resize(_Descriptors.size());
         #pragma omp parallel for
         for(size_t i = 0; i < _Descriptors.size(); i++) {
             _Clusters[i].emplace_back(_Descriptors[i]);

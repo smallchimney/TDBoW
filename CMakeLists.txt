@@ -43,6 +43,8 @@ SET(CMAKE_CXX_FLAGS "-O2 ${CMAKE_CXX_FLAGS}")
 ###################
 find_package(catkin REQUIRED)
 
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
+
 ## Eigen and boost are required
 
 # Manually resolve removed dependend packages
@@ -64,6 +66,11 @@ if(NOT (Boost_VERSION VERSION_LESS "106000"))
 endif()
 set(EXTRA_INCS ${Boost_INCLUDE_DIRS} ${EXTRA_INCS})
 set(EXTRA_LIBS ${Boost_LIBRARIES}    ${EXTRA_LIBS})
+
+find_package(FLANN REQUIRED)
+set(EXTRA_INCS ${FLANN_INCLUDE_DIRS} ${EXTRA_INCS})
+set(EXTRA_LIBS ${FLANN_LIBRARIES} ${EXTRA_LIBS})
+add_definitions(${FLANN_DEFINITIONS})
 
 find_package(OpenMP QUIET)
 if(OPENMP_FOUND)
@@ -136,15 +143,8 @@ if(BUILD_TDBOW_PC_Demo)
   ## Setting context
   set(EXEC_NAME pc_demo)
   set(EXEC_TARGET_NAME ${PROJECT_NAME}-${EXEC_NAME}-exec)
-  ## PCL required && OpenMP optional
-  find_package(OpenMP QUIET)
-  if(OPENMP_FOUND)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-    add_definitions(-DFOUND_OPENMP)
-    message(STATUS "OpenMP Founded")
-  endif()
-  find_package(PCL 1.7.2 REQUIRED COMPONENTS common io keypoints features)
+  ## PCL required
+  find_package(PCL 1.7.2 QUIET REQUIRED COMPONENTS common io keypoints features)
   add_definitions(${PCL_DEFINITIONS})
   ## Build target
   add_executable(${EXEC_TARGET_NAME} demo/pc/demo.cpp)

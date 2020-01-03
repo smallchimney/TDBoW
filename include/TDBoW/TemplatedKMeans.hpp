@@ -69,7 +69,6 @@ template <class DescriptorUtil>
 class TemplatedKMeans {
 protected:
     // Load the typename from DescriptorUtil
-    typedef typename DescriptorUtil::distance_type    distance_type;
     typedef typename DescriptorUtil::MeanCallback     MeanCallback;
     typedef typename DescriptorUtil::DistanceCallback DistanceCallback;
     TDBOW_DESCRIPTOR_DEF(DescriptorUtil)
@@ -199,8 +198,7 @@ void TemplatedKMeans<DescriptorUtil>::process(
             #pragma omp parallel for
 #endif
             for(size_t i = 0; i < _Centers.size(); i++) {
-                auto& cluster = _Clusters[i];
-                _Centers[i] = _MeanF(cluster);
+                _Centers[i] = _MeanF(_Clusters[i]);
             }
         }
 

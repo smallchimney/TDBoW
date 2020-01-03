@@ -51,7 +51,7 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-11-20 10:37:21
    * Last Modified : smallchimney
-   * Modified Time : 2019-12-29 15:05:15
+   * Modified Time : 2020-01-03 19:48:50
 ************************************************************************* */
 #ifndef __ROCKAUTO_TDBOW_TEMPLATED_DESCRIPTOR_HPP__
 #define __ROCKAUTO_TDBOW_TEMPLATED_DESCRIPTOR_HPP__
@@ -76,9 +76,6 @@ namespace internal {
     static std::string __tdbow_line_str(const std::string&, const size_t&, std::basic_ostream<T>&);
 }
 
-std::string toHex(const uint8_t& _Data) noexcept;
-uint8_t fromHex(const std::string& _Str) noexcept(false);
-
 // Generic class to encapsulate functions to manage descriptors.
 template <typename TScalar, size_t L>
 class TemplatedDescriptorUtil {
@@ -90,6 +87,7 @@ protected:
 
 public:
     static constexpr size_t DescL = L;
+    typedef uint8_t binary_type;
 
 #define __DECAY(...) __VA_ARGS__
 #define __TDBOW_PTR_DEF(Original, Type) \
@@ -104,8 +102,9 @@ public:
     __TDBOW_PTR_DEF(__DECAY(std::vector<Descriptors,
             Eigen::aligned_allocator<Descriptors>>),          DescriptorsArray)
     __TDBOW_PTR_DEF(__DECAY(std::vector<DescriptorArray>),    DescriptorsSet)
-    __TDBOW_PTR_DEF(Matrix<uint8_t>,                          BinaryDescriptor)
-    __TDBOW_PTR_DEF(__DECAY(Matrix<uint8_t, Eigen::Dynamic>), BinaryDescriptors)
+    __TDBOW_PTR_DEF(Matrix<binary_type>,                      BinaryDescriptor)
+    __TDBOW_PTR_DEF(__DECAY(
+            Matrix<binary_type, Eigen::Dynamic>),             BinaryDescriptors)
     __TDBOW_PTR_DEF(__DECAY(std::vector<BinaryDescriptor,
             Eigen::aligned_allocator<BinaryDescriptor>>),     BinaryDescriptorArray)
     __TDBOW_PTR_DEF(__DECAY(std::vector<BinaryDescriptors,
@@ -221,7 +220,7 @@ public:
      * @return               The mean of the descriptors
      */
     static Descriptor meanValue(const std::vector<DescriptorConstPtr>& _Descriptors) noexcept(false) {
-        if(std::is_same<TScalar, uint8_t>()) {
+        if(std::is_same<TScalar, binary_type>()) {
             return _meanValue(_Descriptors, binaryMean);
         } else if(std::is_same<TScalar, float_t>()) {
             return _meanValue(_Descriptors, valueMean);
@@ -254,7 +253,7 @@ public:
      * @return     The distance of the two descriptors
      */
     static distance_type distance(const Descriptor& _A, const Descriptor& _B) noexcept(false) {
-        if(std::is_same<TScalar, uint8_t>()) {
+        if(std::is_same<TScalar, binary_type>()) {
             return _distance(_A, _B, binaryDistance);
         } else if(std::is_same<TScalar, float_t>()) {
             return _distance(_A, _B, valueDistance);
@@ -345,6 +344,21 @@ protected:
      */
     static distance_type valueDistance(const Descriptor& _A, const Descriptor& _B);
 
+    /**
+     * @brief  Transform binary data to readable string
+     * @author smallchimney
+     * @param  _Data  Data to be visualize
+     * @return        Readable data string
+     */
+    static std::string toHex(const binary_type& _Data) noexcept;
+
+    /**
+     * @brief  Transform readable string to binary data
+     * @author smallchimney
+     * @param  _Str   Readable hex string
+     * @return        Data to be visualize
+     */
+    static binary_type fromHex(const std::string& _Str) noexcept(false);
 };
 
 template <typename TScalar, size_t DescL>
@@ -422,9 +436,9 @@ TemplatedDescriptorUtil<TScalar, L>::binaryMean(const std::vector<DescriptorCons
         return *_Descriptors[0];
     }
     for(const auto& descriptor : _Descriptors) {
-        // For uint8_t descriptor, the cast operation make no sense,
+        // For binary descriptor, the cast operation make no sense,
         // this is only for other type can compile, but should never execute.
-        const auto* d = reinterpret_cast<const uint8_t*>(descriptor -> data());
+        const auto* d = reinterpret_cast<const binary_type*>(descriptor -> data());
         for(size_t i = 0; i < L; i++, d++) {
             if(*d & (1 << 7)) ++sum[i * 8    ];
             if(*d & (1 << 6)) ++sum[i * 8 + 1];
@@ -436,9 +450,9 @@ TemplatedDescriptorUtil<TScalar, L>::binaryMean(const std::vector<DescriptorCons
             if(*d & (1))      ++sum[i * 8 + 7];
         }
     }
-    // For uint8_t descriptor, the cast operation make no sense,
+    // For binary descriptor, the cast operation make no sense,
     // this is only for other type can compile, but should never execute.
-    auto* p = reinterpret_cast<uint8_t*>(mean.data());
+    auto* p = reinterpret_cast<binary_type*>(mean.data());
     const auto N2 = _Descriptors.size() / 2 + _Descriptors.size() % 2;
     for(size_t i = 0; i < sum.size(); ++i) {
         if(sum[i] >= N2) {
@@ -533,7 +547,7 @@ std::string TemplatedDescriptorUtil<TScalar, L>::toString(const Descriptor& _Des
     // confirm the string is valid
     static std::stringstream ss;
     ss.clear(); ss.str("");
-    const auto* p = reinterpret_cast<const uint8_t*>(_Desc.data());
+    const auto* p = reinterpret_cast<const binary_type*>(_Desc.data());
     ss << toHex(*p++);
     constexpr auto LEN = L * sizeof(TScalar);
     for(size_t i = 1; i < LEN; i++) {
@@ -547,7 +561,7 @@ void TemplatedDescriptorUtil<TScalar, L>::fromString(const std::string& _In, Des
     // confirm the string is valid
     static std::stringstream ss;
     ss.str(_In);
-    auto* p = reinterpret_cast<uint8_t*>(_Desc.data());
+    auto* p = reinterpret_cast<binary_type*>(_Desc.data());
     constexpr auto LEN = L * sizeof(TScalar);
     std::string hex;
     for(size_t i = 0; i < LEN; i++, p++) {
@@ -654,7 +668,9 @@ unsigned hex2int(const char& _Ch) noexcept(false) {
     }
 }
 
-std::string toHex(const uint8_t& _Data) noexcept {
+template<typename TScalar, size_t L>
+std::string TemplatedDescriptorUtil<TScalar, L>::toHex(
+        const binary_type& _Data) noexcept {
     static std::stringstream ss;
     ss.clear(); ss.str("");
     ss << int2hex(static_cast<unsigned>(_Data / 16));
@@ -662,12 +678,14 @@ std::string toHex(const uint8_t& _Data) noexcept {
     return ss.str();
 }
 
-uint8_t fromHex(const std::string& _Str) noexcept(false) {
+template<typename TScalar, size_t L>
+typename TemplatedDescriptorUtil<TScalar, L>::binary_type
+TemplatedDescriptorUtil<TScalar, L>::fromHex(const std::string& _Str) noexcept(false) {
     if(_Str.length() != 2) {
         throw MethodNotMatchException(TDBOW_LOG(
                 "Not TDBoW default descriptor string(hex), please use custom fromString()"));
     }
-    return static_cast<uint8_t>(hex2int(_Str[0]) * 16 + hex2int(_Str[1]));
+    return static_cast<binary_type>(hex2int(_Str[0]) * 16 + hex2int(_Str[1]));
 }
 
 #ifdef TDBOW_RELATIVE_LOG
@@ -729,6 +747,7 @@ namespace internal {
  * @brief typedef for others class
  */
 #define TDBOW_DESCRIPTOR_DEF(Util) \
+    typedef typename Util :: distance_type            distance_type;\
     typedef typename Util :: Descriptor               Descriptor;\
     typedef typename Util :: DescriptorPtr            DescriptorPtr;\
     typedef typename Util :: DescriptorConstPtr       DescriptorConstPtr;\

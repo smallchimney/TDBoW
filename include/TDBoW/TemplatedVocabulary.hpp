@@ -69,6 +69,7 @@
 #include "TemplatedKMeans.hpp"
 #include <quicklz.h>
 
+#include <flann/flann.hpp>
 #include <boost/dynamic_bitset.hpp>
 #include <yaml-cpp/yaml.h>
 
@@ -99,6 +100,13 @@ public:
     typedef TemplatedKMeans<util> KMeansUtil;
     TDBOW_DESCRIPTOR_DEF(util)
 
+    // typedef for Flann
+    typedef ::flann::L2<TScalar> FLANNDist;
+    template <typename Scalar>
+    using FLANNMatrix = ::flann::Matrix<Scalar>;
+    typedef ::flann::Index<FLANNDist> FLANNIndex;
+    typedef std::unique_ptr<FLANNIndex> FLANNIndexPtr;
+
     /** The mode of operation when loading a vocabulary */
     enum LoadMode {AUTO, BINARY, YAML};
 
@@ -111,7 +119,7 @@ public:
      * @param _Weighting  Weighting type
      * @param _Scoring    Scoring type
      */
-    explicit TemplatedVocabulary(unsigned _K = 10, unsigned _L = 5,
+    explicit TemplatedVocabulary(unsigned _K = 10, unsigned _L = 1,
             WeightingType _Weighting = TF_IDF, ScoringType _Scoring = L1_NORM);
   
     /**
@@ -149,9 +157,10 @@ public:
     /**
      * @breif Creates a vocabulary from the training features with the already
      * defined parameters
-     * @param _TrainingData
+     * @param _TrainingData  The train dataset
+     * @param _WiseK         whether dynamic adjust the K parameter
      */
-    virtual void create(const ConstDataSet& _TrainingData);
+    void create(const ConstDataSet& _TrainingData, bool _WiseK = true) noexcept(false);
 
     /**
      * @breif Creates a vocabulary from the training features, setting the branching
@@ -162,8 +171,8 @@ public:
      * @param _Weighting     Weighting type
      * @param _Scoring       Scoring type
      */
-    void create(const ConstDataSet& _TrainingData, unsigned _K, unsigned _L,
-            WeightingType _Weighting = TF_IDF, ScoringType _Scoring = L1_NORM);
+    void create(const ConstDataSet& _TrainingData, unsigned _K, unsigned _L = 1,
+            WeightingType _Weighting = TF_IDF, ScoringType _Scoring = L1_NORM) noexcept(false);
 
     // Function methods
 
@@ -221,6 +230,20 @@ public:
      * @param  _Alloc  Whether alloc a new space for nodes
      */
     void clear(bool _Alloc = false);
+
+    /**
+     * @breif  Stops those words whose weight is below minWeight.
+     *         Words are stopped by setting their weight to 0. There are not returned
+     *         later when transforming image features into vectors.
+     *         Note that when using IDF or TF_IDF, the weight is the idf part, which
+     *         is equivalent to -log(f), where f is the frequency of the word
+     *         (f = Ni/N, Ni: number of training images where the word is present,
+     *         N: number of training images).
+     * @author smallchimney
+     * @param  _Percent  the stop threshold in percent
+     * @return           number of words stopped now
+     */
+    virtual size_t stopPercent(double _Percent);
 
     /**
      * @breif  Stops those words whose weight is below minWeight.
@@ -516,6 +539,12 @@ protected:
     void _buildTree(const std::vector<DescriptorConstPtr>& _Descriptors);
 
     /**
+     * @brief  build the search tree on words
+     * @author smallchimney
+     */
+    void _buildSearchTree();
+
+    /**
      * @breif Create the words of the vocabulary once the tree has been built
      */
     void _createWords();
@@ -556,6 +585,16 @@ protected:
     /// this condition holds: (*m_pNodes)[m_aWords[wid]] -> word_id == wid
     std::vector<NodeId> m_aWords;
 
+    /** @brief the leaves in search tree, stands for all the words' descriptors */
+    std::vector<Descriptor> m_aSearchTreeLeaves;
+
+    /**
+     * @brief FLANN based kd-tree implement search tree
+     * // TODO: maybe use paracel::balltree better in this case?
+     * @author smallchimney
+     */
+    FLANNIndexPtr m_pWordsSearchTree;
+
 };
 
 /* ********************************************************************************
@@ -566,7 +605,8 @@ template <typename TScalar, size_t DescL>
 TemplatedVocabulary<TScalar, DescL>::TemplatedVocabulary(
         const unsigned _K, const unsigned _L, const WeightingType _Weighting,
         const ScoringType _Scoring) noexcept(false)
-        : m_uiK(_K), m_uiL(_L), m_pScoringObj(nullptr), m_pNodes(nullptr) {
+        : m_uiK(_K), m_uiL(_L), m_pScoringObj(nullptr), m_pNodes(nullptr),
+        m_pWordsSearchTree(nullptr) {
     if(pow(_K, _L) >= std::numeric_limits<NodeId>::max()) {
         throw ParametersException(TDBOW_LOG("Too large for the vocabulary scale."));
     }
@@ -577,7 +617,7 @@ TemplatedVocabulary<TScalar, DescL>::TemplatedVocabulary(
 template <typename TScalar, size_t DescL>
 TemplatedVocabulary<TScalar, DescL>::TemplatedVocabulary(
         const std::string& _Filename, const LoadMode _Mode) noexcept(false)
-        : m_pScoringObj(nullptr), m_pNodes(nullptr) {
+        : m_pScoringObj(nullptr), m_pNodes(nullptr), m_pWordsSearchTree(nullptr) {
     load(_Filename, _Mode);
 }
 
@@ -589,6 +629,8 @@ TemplatedVocabulary<TScalar, DescL>::TemplatedVocabulary(
     m_uiK = _Vocab.m_uiK;
     m_pNodes = std::move(_Vocab.m_pNodes);
     m_aWords = std::move(_Vocab.m_aWords);
+    m_aSearchTreeLeaves = std::move(_Vocab.m_aSearchTreeLeaves);
+    m_pWordsSearchTree = std::move(_Vocab.m_pWordsSearchTree);
     setWeightingType(_Vocab.m_eWeighting);
     setScoringType(_Vocab.m_eScoring);
     m_bInit = _Vocab.m_bInit;
@@ -630,19 +672,34 @@ void TemplatedVocabulary<TScalar, DescL>::_createScoringObject() {
  ******************************************************************************** */
 
 template <typename TScalar, size_t DescL>
-void TemplatedVocabulary<TScalar, DescL>::create(const ConstDataSet& _TrainingData) {
+void TemplatedVocabulary<TScalar, DescL>::create(
+        const ConstDataSet& _TrainingData, bool _WiseK) noexcept(false) {
+    // wise K adjust require TDBoW's format vocabulary, set the level as just single layer
+    if(_WiseK && m_uiL != 1)_WiseK = false;
+
     clear(true);
-    // expectedSize = Sum_{i=0..L} ( k^i )
-    auto expectedSize = static_cast<size_t>((pow(m_uiK, m_uiL + 1) - 1) / (m_uiK - 1));
-    m_pNodes -> reserve(expectedSize); // avoid allocations when creating the tree
     std::vector<DescriptorConstPtr> features(0);
     _getFeatures(_TrainingData, features);
+    if(features.size() < 100) {
+        throw DataException(TDBOW_LOG("Too few data for a dataset to be trained."));
+    }
+    if(_WiseK) {
+        auto logN = features.size() <= 1000 ? 3. : log10(features.size());
+        m_uiK = static_cast<unsigned>(features.size() / (10 * (logN - 2)));
+        m_pNodes -> reserve(m_uiK + 1);
+    } else {
+        // expectedSize = Sum_{i=0..L} ( k^i )
+        auto expectedSize = static_cast<size_t>((pow(m_uiK, m_uiL + 1) - 1) / (m_uiK - 1));
+        m_pNodes -> reserve(expectedSize); // avoid allocations when creating the tree
+    }
     // Insert the root node
     m_pNodes -> emplace_back(0);
     // Create the tree
     _buildTree(features);
     // Create the words
     _createWords();
+    // build the search tree
+    _buildSearchTree();
     // Set the initialized label
     m_bInit = !empty();
     // Set the weight of each node of the tree
@@ -652,7 +709,7 @@ void TemplatedVocabulary<TScalar, DescL>::create(const ConstDataSet& _TrainingDa
 template <typename TScalar, size_t DescL>
 void TemplatedVocabulary<TScalar, DescL>::create(
         const ConstDataSet& _TrainingData, const unsigned _K, const unsigned _L,
-        const WeightingType _Weighting, const ScoringType _Scoring) {
+        const WeightingType _Weighting, const ScoringType _Scoring) noexcept(false) {
     m_uiK = _K; m_uiL = _L;
     clear(true);
     setWeightingType(_Weighting);
@@ -750,11 +807,34 @@ void TemplatedVocabulary<TScalar, DescL>::clear(const bool _Alloc) {
 }
 
 template <typename TScalar, size_t DescL>
+size_t TemplatedVocabulary<TScalar, DescL>::stopPercent(double _Percent) {
+    if(_Percent >= 100) {
+        throw LogicException(TDBOW_LOG("Take no means for stop all the words!"));
+    }
+    if(_Percent < 0) {
+        throw ParametersException(TDBOW_LOG("negative percent is illegal"));
+    }
+    if(_Percent >= 1)_Percent /= 100;
+
+    std::vector<std::pair<WordValue, WordId>> words;
+    words.reserve(m_aWords.size());
+    // Be careful if change the word's structure
+    for(size_t wordId = 0; wordId < m_aWords.size(); wordId++) {
+        const auto& nodeId = m_aWords[wordId];
+        const auto& node = (*m_pNodes)[nodeId];
+        words.emplace_back(std::make_pair(node.weightBackup, nodeId));
+    }
+    std::sort(words.begin(), words.end());
+    auto idx = static_cast<size_t>(words.size() * _Percent);
+    return stopWords(words[idx].first);
+}
+
+template <typename TScalar, size_t DescL>
 size_t TemplatedVocabulary<TScalar, DescL>::stopWords(const WordValue _MinLimit) {
     size_t count = 0;
     for(const auto& nodeId : m_aWords) {
         auto& node = (*m_pNodes)[nodeId];
-        if(node.weight < _MinLimit) {
+        if(node.weight <= _MinLimit) {
             count++;
             node.weight = 0;
         } else {
@@ -1099,6 +1179,7 @@ void TemplatedVocabulary<TScalar, DescL>::loadYAML(
             m_aWords[wordId] = nodeId;
             (*m_pNodes)[nodeId].word_id = wordId;
         }
+        _buildSearchTree();
     } catch(YAML::Exception& e) {
         throw FormatException(TDBOW_LOG(
                 "Vocabulary file may be invalid: " << e.what()));
@@ -1269,6 +1350,7 @@ void TemplatedVocabulary<TScalar, DescL>::read(std::istream& _In) noexcept(false
         in -> read((char*)&word, sizeof(word));
         (*m_pNodes)[word].word_id = i;
     }
+    _buildSearchTree();
 }
 
 /**
@@ -1390,33 +1472,48 @@ void TemplatedVocabulary<TScalar, DescL>::_transform(
 }
 
 template <typename TScalar, size_t DescL>
-NodeId TemplatedVocabulary<TScalar, DescL>::_transform(const Descriptor& _Feature,
-        WordId& _WordId, WordValue& _Weight, const unsigned int _LevelsUp) const noexcept(false) {
+NodeId TemplatedVocabulary<TScalar, DescL>::_transform(
+        const Descriptor& _Feature, WordId& _WordId, WordValue& _Weight,
+        const unsigned int _LevelsUp) const noexcept(false) {
     if(!ready()) {
         throw NotInitailizedException(TDBOW_LOG(
                 "The vocabulary is empty, must be created before transform."));
     }
-    // Propagate the feature down the tree
-    auto requiredLevel = m_uiL >= _LevelsUp ? m_uiL - _LevelsUp : 0;
-    NodeId selected = 0, ret = 0; // start from root
-    unsigned currentLevel = 0;
-    do {
-        auto min = std::numeric_limits<typename util::distance_type>::max();
-        for(const auto& cid : (*m_pNodes)[selected].children) {
-            const auto& child = (*m_pNodes)[cid];
-            const auto d = util::distance(_Feature, child.descriptor);
-            if(d < min) {
-                min = d;
-                selected = cid;
+    // In TDBoW's recommend case
+    if(m_uiL == 1 || !std::is_same<typename util::binary_type, TScalar>()) {
+        Descriptor query = _Feature;
+        size_t index;
+        typename FLANNDist::ResultType distance;
+        FLANNMatrix<decltype(distance)> dis(&distance, 1, 1);
+        FLANNMatrix<size_t> idx(&index, 1, 1);
+        m_pWordsSearchTree -> knnSearch(FLANNMatrix<TScalar>(query.data(), 1, DescL),
+                                        idx, dis, 1, ::flann::SearchParams(-1));
+        _WordId = static_cast<WordId>(index);
+        _Weight = (*m_pNodes)[m_aWords[index]].weight;
+        return getParentNode(_WordId, _LevelsUp);
+    } else {  // In DBoW2's original case
+        // Propagate the feature down the tree
+        auto requiredLevel = m_uiL >= _LevelsUp ? m_uiL - _LevelsUp : 0;
+        NodeId selected = 0, ret = 0; // start from root
+        unsigned currentLevel = 0;
+        do {
+            auto min = std::numeric_limits<distance_type>::max();
+            for(const auto& cid : (*m_pNodes)[selected].children) {
+                const auto& child = (*m_pNodes)[cid];
+                const auto d = util::distance(_Feature, child.descriptor);
+                if(d < min) {
+                    min = d;
+                    selected = cid;
+                }
             }
-        }
-        if(currentLevel++ == requiredLevel) {
-            ret = selected;
-        }
-    } while(!(*m_pNodes)[selected].isLeaf());
-    _WordId = (*m_pNodes)[selected].word_id;
-    _Weight = (*m_pNodes)[selected].weight;
-    return ret;
+            if(currentLevel++ == requiredLevel) {
+                ret = selected;
+            }
+        } while(!(*m_pNodes)[selected].isLeaf());
+        _WordId = (*m_pNodes)[selected].word_id;
+        _Weight = (*m_pNodes)[selected].weight;
+        return ret;
+    }
 }
 
 template <typename TScalar, size_t DescL>
@@ -1426,16 +1523,11 @@ void TemplatedVocabulary<TScalar, DescL>::_buildTree(
     std::queue<Task> tasks;
     tasks.push(std::make_tuple(0, _Descriptors, 1));
 
-//    boost::dynamic_bitset<> levels(m_uiL);
     while(!tasks.empty()) {
         const auto& task = tasks.front();
         const auto& descriptors = std::get<1>(task);
         const auto parentId = std::get<0>(task);
         const auto level = std::get<2>(task);
-//        if(!levels.test(level - 1)) {
-//            levels.set(level - 1);
-//            std::cout << TDBOW_LOG("level " << level << " start building.");
-//        }
         if(descriptors.empty()) {
             tasks.pop();
             continue;
@@ -1465,6 +1557,20 @@ void TemplatedVocabulary<TScalar, DescL>::_buildTree(
             }
         }
     }
+}
+
+template <typename TScalar, size_t DescL>
+void TemplatedVocabulary<TScalar, DescL>::_buildSearchTree() {
+    if(!m_pNodes || m_pNodes -> size() <= 1 || m_aWords.empty())return;
+    m_aSearchTreeLeaves.reserve(m_aWords.size());
+    for(const auto& word : m_aWords) {
+        m_aSearchTreeLeaves.emplace_back((*m_pNodes)[word].descriptor);
+    }
+    m_pWordsSearchTree = FLANNIndexPtr(new FLANNIndex(
+            FLANNMatrix<TScalar>(m_aSearchTreeLeaves.data() -> data(),
+                        m_aSearchTreeLeaves.size(), DescL),
+            ::flann::KDTreeIndexParams(1)));
+    m_pWordsSearchTree -> buildIndex();
 }
 
 template <typename TScalar, size_t DescL>

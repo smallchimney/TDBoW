@@ -26,6 +26,9 @@
 
 #include <random>
 #include <functional>
+#ifdef FOUND_OPENMP
+#include <omp.h>
+#endif
 
 #include "TemplatedDescriptor.hpp"
 
@@ -206,8 +209,9 @@ void TemplatedKMeans<DescriptorUtil>::process(
         // calculate distances to cluster centers
         _Clusters.assign(_Centers.size(), std::vector<DescriptorConstPtr>());
         currentBelong.resize(_Descriptors.size());
+        distance_type loss = 0, prevLoss;
 #ifdef FOUND_OPENMP
-        #pragma omp parallel for
+        #pragma omp parallel for reduction(+:loss)
 #endif
         for(size_t i = 0; i < _Descriptors.size(); i++) {
             const auto& descriptor = *_Descriptors[i];
@@ -220,18 +224,35 @@ void TemplatedKMeans<DescriptorUtil>::process(
                     minIdx = idx;
                 }
             }
+            loss += min;
             currentBelong[i] = minIdx;
         }
         for(size_t i = 0; i < _Descriptors.size(); i++) {
             const auto idx = currentBelong[i];
             _Clusters[idx].emplace_back(_Descriptors[i]);
         }
-        iterCount++;
+        if(iterCount++ && loss > prevLoss) {
+            // Return the previous result
+            _Clusters.assign(_Centers.size(), std::vector<DescriptorConstPtr>());
+            for(size_t i = 0; i < _Descriptors.size(); i++) {
+                const auto idx = previousBelong[i];
+                _Clusters[idx].emplace_back(_Descriptors[i]);
+            }
+#ifdef FOUND_OPENMP
+            #pragma omp parallel for
+#endif
+            for(size_t i = 0; i < _Centers.size(); i++) {
+                _Centers[i] = _MeanF(_Clusters[i]);
+            }
+            return;
+        }
+        // std::cerr << TDBOW_LOG("[DEBUG]: finished iter " << iterCount << ": " << loss);
         // k-means++ ensures all the clusters has any feature associated with them
 
         // 3. check convergence
-        if(currentBelong == previousBelong)break;
+        if(currentBelong == previousBelong)return;
         previousBelong = currentBelong;
+        prevLoss = loss;
     }
 }
 

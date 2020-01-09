@@ -107,7 +107,6 @@ link_libraries(
 
 ## Setting TDBoW context
 set(TDBoW_INC include/TDBoW)
-set(TDBoW_LIB pthread)
 file(GLOB_RECURSE TDBoW_HDRS
         RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
         ${TDBoW_INC}/*.h
@@ -124,7 +123,7 @@ if(WIN32)
 endif(WIN32)
 add_library(${PROJECT_NAME} ${LIB_SHARED} ${TDBoW_SRCS} ${EXTRA_SRCS})
 include_directories(include ${EXTRA_INCS} ${catkin_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} ${TDBoW_LIB} ${EXTRA_LIBS})
+target_link_libraries(${PROJECT_NAME} ${EXTRA_LIBS})
 
 if(BUILD_TDBOW_CV_Demo)
   ## Setting context

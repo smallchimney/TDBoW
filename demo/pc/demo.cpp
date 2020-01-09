@@ -19,7 +19,7 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-12-05 16:55:11
    * Last Modified : smallchimney
-   * Modified Time : 2020-01-03 17:34:06
+   * Modified Time : 2020-01-08 21:33:12
 ************************************************************************* */
 // TDBoW and template typedef
 #include <TDBoW/PCBridge.h>
@@ -107,7 +107,7 @@ std::vector<std::string> loadFeatures(DescriptorsSet& _Features) {
     pcl::HarrisKeypoint3D<pcl::PointXYZ, pcl::PointXYZI, pcl::Normal> harris;
 #ifdef FOUND_OPENMP
     pcl::FPFHEstimationOMP<pcl::PointXYZ, pcl::PointNormal, pcl::FPFHSignature33> fpfh;
-    fpfh.setNumberOfThreads(std::thread::hardware_concurrency());
+    fpfh.setNumberOfThreads(static_cast<unsigned>(omp_get_num_threads()));
 #else
     pcl::FPFHEstimation<PointXYZ, pcl::PointNormal, pcl::FPFHSignature33> fpfh;
 #endif

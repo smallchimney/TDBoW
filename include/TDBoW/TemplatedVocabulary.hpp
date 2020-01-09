@@ -56,7 +56,6 @@
 #define __ROCKAUTO_TDBOW_TEMPLATED_VOCABULARY_HPP__
 
 #include <fstream>
-#include <thread>
 #include <cassert>
 #include <cstdlib>
 #include <algorithm>
@@ -202,16 +201,6 @@ public:
      */
     void transform(const Descriptors& _Features, BowVector& _BowVec,
             const FeatureVectorPtr& _FeatVec = nullptr, unsigned _LevelsUp = 0) const noexcept(false);
-
-    /**
-     * @breif Transform a set of descriptors in a single thread
-     * @param _Features
-     * @param _BowVec  (out)   Bow vector
-     * @param _FeatVec (out)   Feature vector of nodes and feature indexes
-     * @param _LevelsUp        Levels to go up the vocabulary tree to get the node index
-     */
-    virtual void _transform_thread(const DescriptorArray& _Features,
-            BowVector& _BowVec, const FeatureVectorPtr& _FeatVec, unsigned _LevelsUp) const noexcept(false);
   
     /**
      * @breif  Returns the score of two vectors
@@ -735,46 +724,60 @@ template <typename TScalar, size_t DescL>
 void TemplatedVocabulary<TScalar, DescL>::transform(
         const DescriptorArray& _Features, BowVector& _BowVec,
         const FeatureVectorPtr& _FeatVec, const unsigned _LevelsUp) const noexcept(false) {
-    typedef unsigned ThreadNum;
-    typedef size_t TaskNum;
-    static const ThreadNum THREADS_MAX_LIMIT =
-            std::thread::hardware_concurrency();
-    // todo: maybe auto altered by CPU
-    static const TaskNum TASKS_LOW_LIMIT = 10000;
-    auto threadNum = static_cast<ThreadNum>(
-            _Features.size() / TASKS_LOW_LIMIT);
-    threadNum = std::min(THREADS_MAX_LIMIT, threadNum);
-    if(threadNum <= 1) {
-        // In case {@code TASKS_LOW_LIMIT > (_Features.size() / 2)},
-        // execute in the main thread.
-        _transform_thread(_Features, _BowVec, _FeatVec, _LevelsUp);
+    if(!ready()) {
+        throw NotInitailizedException(TDBOW_LOG(
+                "The vocabulary is empty, must be created before transform."));
+    }
+    _BowVec.clear();
+    if(_FeatVec) {
+        _FeatVec -> clear();
+    }
+    if(empty()) { // Safe for subclasses
         return;
     }
 
-    // Depart the tasks
-    auto taskNum = static_cast<TaskNum>(ceil((double)_Features.size() / threadNum));
-    DescriptorsSet features(0);
-    features.reserve(threadNum);
-    auto iter1 = _Features.begin(), iter2 = _Features.begin() + taskNum;
-    for(ThreadNum i = 0; i < threadNum - 1; i++, iter1 = iter2, iter2 += taskNum) {
-        features.emplace_back(iter1, iter2);
-    }
-    features.emplace_back(iter1, _Features.end());
+    std::function<void(WordId, WordValue)> f = nullptr;
+    switch(m_eWeighting) {
+        case WeightingType::TF: case WeightingType::TF_IDF:
+            f = std::bind(&BowVector::addWeight, &_BowVec,
+                          std::placeholders::_1, std::placeholders::_2);
+            break;
 
-    // Two choice:
-    // 1. Give different BowVector and FeatureVector to threads,
-    // and combine at last.
-    // 2. Give the same BowVector and FeatureVector to threads,
-    // but call thread safety methods.
-    // Current implement is plan 2.
-    std::vector<std::thread> pool;
-    pool.reserve(threadNum);
-    for(ThreadNum i = 0; i < threadNum; i++) {
-        pool.emplace_back(std::bind(
-                &TemplatedVocabulary<TScalar, DescL>::_transform_thread,
-                this, features[i], _BowVec, _FeatVec, _LevelsUp));
+        case WeightingType::IDF: case WeightingType::BINARY:
+            f = std::bind(&BowVector::addIfNotExist, &_BowVec,
+                          std::placeholders::_1, std::placeholders::_2);
+            break;
     }
-    for(auto& thread : pool)thread.join();
+    assert(f != nullptr);
+    size_t idx = 0;
+#ifdef FOUND_OPENMP
+    #pragma omp parallel for
+#endif
+    for(size_t i = 0; i < _Features.size(); i++) {
+        const auto& feature = _Features[i];
+        WordId id = 0;
+        WordValue w = 0.;
+        // TF_IDF/IDF -- idf value
+        // TF/BINARY  -- 1
+        NodeId nid = _transform(feature, id, w, _LevelsUp);    // thread safe method
+        // If not stopped
+        if(w > 0) {
+            // NOTE: These two method must be safety in multi-threads
+            f(id, w);
+            if(_FeatVec) {
+                _FeatVec -> addFeature(nid, idx);
+            }
+        }
+        idx++;
+    }
+    // Normalize
+    LNorm norm{};
+    if(m_pScoringObj -> mustNormalize(norm)) {
+        _BowVec.normalize(norm);
+    } else if(!_BowVec.empty() && (m_eWeighting == TF || m_eWeighting == TF_IDF)) {
+        const double nd = _BowVec.size();
+        for(auto& v : _BowVec) v.second /= nd;
+    }
 }
 
 template <typename TScalar, size_t DescL>
@@ -1405,62 +1408,6 @@ void TemplatedVocabulary<TScalar, DescL>::_getFeatures(
     }
     if(_Features.empty()) {
         throw EmptyDataException(TDBOW_LOG("Empty dataset."));
-    }
-}
-
-template <typename TScalar, size_t DescL>
-void TemplatedVocabulary<TScalar, DescL>::_transform_thread(
-        const DescriptorArray& _Features, BowVector& _BowVec,
-        const FeatureVectorPtr& _FeatVec, const unsigned _LevelsUp) const noexcept(false) {
-    if(!ready()) {
-        throw NotInitailizedException(TDBOW_LOG(
-                "The vocabulary is empty, must be created before transform."));
-    }
-    _BowVec.clear();
-    if(_FeatVec) {
-        _FeatVec -> clear();
-    }
-    if(empty()) { // Safe for subclasses
-        return;
-    }
-
-    std::function<void(WordId, WordValue)> f = nullptr;
-    switch(m_eWeighting) {
-        case WeightingType::TF: case WeightingType::TF_IDF:
-            f = std::bind(&BowVector::addWeight, &_BowVec,
-                          std::placeholders::_1, std::placeholders::_2);
-            break;
-
-        case WeightingType::IDF: case WeightingType::BINARY:
-            f = std::bind(&BowVector::addIfNotExist, &_BowVec,
-                          std::placeholders::_1, std::placeholders::_2);
-            break;
-    }
-    assert(f != nullptr);
-    size_t idx = 0;
-    for(const auto& feature : _Features) {
-        WordId id = 0;
-        WordValue w = 0.;
-        // TF_IDF/IDF -- idf value
-        // TF/BINARY  -- 1
-        NodeId nid = _transform(feature, id, w, _LevelsUp);    // thread safe method
-        // If not stopped
-        if(w > 0) {
-            // NOTE: These two method must be safety in multi-threads
-            f(id, w);
-            if(_FeatVec) {
-                _FeatVec -> addFeature(nid, idx);
-            }
-        }
-        idx++;
-    }
-    // Normalize
-    LNorm norm{};
-    if(m_pScoringObj -> mustNormalize(norm)) {
-        _BowVec.normalize(norm);
-    } else if(!_BowVec.empty() && (m_eWeighting == TF || m_eWeighting == TF_IDF)) {
-        const double nd = _BowVec.size();
-        for(auto& v : _BowVec) v.second /= nd;
     }
 }
 

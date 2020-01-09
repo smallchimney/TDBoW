@@ -61,14 +61,13 @@
 #include <algorithm>
 #include <queue>
 
-#include "FeatureVector.h"
-#include "BowVector.h"
-#include "ScoringObject.h"
+#include "elements/FeatureVector.h"
+#include "elements/BowVector.h"
+#include "elements/ScoringObject.h"
 #include "TemplatedDescriptor.hpp"
 #include "TemplatedKMeans.hpp"
 #include <quicklz.h>
 
-#include <flann/flann.hpp>
 #include <boost/dynamic_bitset.hpp>
 #include <yaml-cpp/yaml.h>
 
@@ -673,8 +672,9 @@ void TemplatedVocabulary<TScalar, DescL>::create(
         throw DataException(TDBOW_LOG("Too few data for a dataset to be trained."));
     }
     if(_WiseK) {
-        auto logN = features.size() <= 1000 ? 3. : log10(features.size());
-        m_uiK = static_cast<unsigned>(features.size() / (10 * (logN - 2)));
+        auto logN = features.size() <= 1000 ? 1. : log10(features.size()) - 2;
+        auto sumLogN = logN * (logN + 1);   // "/ 2 is transform to the below"
+        m_uiK = static_cast<unsigned>(features.size() / (5 * sumLogN));
         m_pNodes -> reserve(m_uiK + 1);
     } else {
         // expectedSize = Sum_{i=0..L} ( k^i )

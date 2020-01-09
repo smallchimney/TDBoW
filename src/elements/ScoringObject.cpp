@@ -22,9 +22,10 @@
  *
  */
 
-#include <TDBoW/TemplatedVocabulary.hpp>
+#include <cmath>
+#include <algorithm>
 
-#include <numeric>
+#include <TDBoW/elements/ScoringObject.h>
 
 namespace TDBoW {
 

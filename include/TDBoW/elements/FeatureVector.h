@@ -57,7 +57,6 @@
 #define __ROCKAUTO_TDBOW_FEATURE_VECTOR_H__
 
 #include "BowVector.h"
-#include "traits.h"
 
 namespace TDBoW {
 

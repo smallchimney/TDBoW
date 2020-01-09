@@ -57,7 +57,7 @@
 #ifndef __ROCKAUTO_TDBOW_BOW_VECTOR_H__
 #define __ROCKAUTO_TDBOW_BOW_VECTOR_H__
 
-#include "traits.h"
+#include <TDBoW/utils/traits.h>
 #include "SpinLock.h"
 
 #include <iostream>

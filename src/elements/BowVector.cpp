@@ -25,7 +25,7 @@
 #include <fstream>
 #include <cmath>
 
-#include <TDBoW/BowVector.h>
+#include <TDBoW/elements/BowVector.h>
 
 namespace TDBoW {
 

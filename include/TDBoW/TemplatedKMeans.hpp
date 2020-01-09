@@ -19,18 +19,20 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-11-27 14:01:21
    * Last Modified : smallchimney
-   * Modified Time : 2020-01-03 14:02:23
+   * Modified Time : 2020-01-12 21:06:26
 ************************************************************************* */
 #ifndef __ROCKAUTO_TEMPLATED_K_MEANS_HPP__
 #define __ROCKAUTO_TEMPLATED_K_MEANS_HPP__
 
+#include "utils/BarProgress.h"
+#include "TemplatedDescriptor.hpp"
+
 #include <random>
 #include <functional>
+#include <flann/flann.hpp>
 #ifdef FOUND_OPENMP
 #include <omp.h>
 #endif
-
-#include "TemplatedDescriptor.hpp"
 
 namespace TDBoW {
 
@@ -75,13 +77,22 @@ protected:
     typedef typename DescriptorUtil::MeanCallback     MeanCallback;
     typedef typename DescriptorUtil::DistanceCallback DistanceCallback;
     TDBOW_DESCRIPTOR_DEF(DescriptorUtil)
+    typedef typename Descriptor::Scalar Scalar;
+
+    // typedef for Flann
+    typedef ::flann::L2<Scalar> FLANNDist;
+    template <typename Scalar>
+    using FLANNMatrix = ::flann::Matrix<Scalar>;
+    typedef ::flann::Index<FLANNDist> FLANNIndex;
 
 public:
     typedef std::function<void(const size_t&, const std::vector<DescriptorConstPtr>&,
             DescriptorArray&, DistanceCallback, MeanCallback)> InitMethods;
 
     TemplatedKMeans() = delete;
-    TemplatedKMeans(const size_t& _K): m_ulK(_K) {}
+    explicit TemplatedKMeans(const size_t& _K): m_ulK(_K) {
+        assert(m_ulK != 0);
+    }
     ~TemplatedKMeans() = default;
 
     /**
@@ -101,8 +112,6 @@ public:
                  InitMethods _Init = initiateClustersKM2nd,
                  DistanceCallback _DistF = &DescriptorUtil::distance,
                  MeanCallback _MeanF = &DescriptorUtil::meanValue) noexcept(false);
-
-protected:
 
     /**
      * @breif  Found k clusters' center from the given descriptor sets
@@ -148,8 +157,7 @@ private:
 template <class DescriptorUtil>
 void TemplatedKMeans<DescriptorUtil>::process(
         const std::vector<DescriptorConstPtr>& _Descriptors,
-        DescriptorArray& _Centers,
-        std::vector<std::vector<DescriptorConstPtr>>& _Clusters,
+        DescriptorArray& _Centers, std::vector<std::vector<DescriptorConstPtr>>& _Clusters,
         InitMethods _Init, DistanceCallback _DistF, MeanCallback _MeanF) noexcept(false) {
     _Centers.clear(); _Centers.shrink_to_fit();
     _Centers.reserve(m_ulK);
@@ -167,6 +175,7 @@ void TemplatedKMeans<DescriptorUtil>::process(
             _Centers[i] = *_Descriptors[i];
         }
 #else
+        _Centers.reserve(m_ulK);
         for(size_t i = 0; i < _Descriptors.size(); i++) {
             _Clusters[i].emplace_back(_Descriptors[i]);
             _Centers.emplace_back(*_Descriptors[i]);
@@ -174,11 +183,17 @@ void TemplatedKMeans<DescriptorUtil>::process(
 #endif
         return;
     }
+
+    // stride on _Center for flann matrix mapping
+    size_t stride = m_ulK > 1 ?
+            (char*)(_Centers[1].data()) - (char*)(_Centers[0].data()) : 0;
+
     // select clusters and groups with k-means
     bool firstTime = true;
     // to check if clusters move after iterations
     std::vector<size_t> currentBelong, previousBelong;
     size_t iterCount = 0;
+    distance_type prevLoss = 0;
     while(true) {
         // 1. Calculate clusters
         if(firstTime) {
@@ -190,10 +205,13 @@ void TemplatedKMeans<DescriptorUtil>::process(
             for(const auto& cluster : _Clusters) {
                 if(cluster.empty()) {
                     firstTime = true;
+                    iterCount = 0;
                     break;
                 }
             }
             if(firstTime) {
+                std::cerr << TDBOW_LOG("Bad cluster founded, "
+                             "re-run the k-means iterations.");
                 continue;
             }
             // calculate cluster centres
@@ -209,23 +227,74 @@ void TemplatedKMeans<DescriptorUtil>::process(
         // calculate distances to cluster centers
         _Clusters.assign(_Centers.size(), std::vector<DescriptorConstPtr>());
         currentBelong.resize(_Descriptors.size());
-        distance_type loss = 0, prevLoss;
+        distance_type loss = 0;
+        if(stride && !std::is_same<Scalar, typename DescriptorUtil::binary_type>()) {
+            FLANNIndex kdTree(FLANNMatrix<Scalar>(_Centers.data() -> data(),
+                    _Centers.size(), DescriptorUtil::DescL, stride),
+                    ::flann::KDTreeIndexParams(1));
+            kdTree.buildIndex();
+            BarProgress progress(_Descriptors.size());   //todo: Add logger switch
 #ifdef FOUND_OPENMP
-        #pragma omp parallel for reduction(+:loss)
+            std::vector<unsigned> __single_thread_count(
+                    static_cast<size_t>(omp_get_num_procs()));
+            #pragma omp parallel for reduction(+:loss)
 #endif
-        for(size_t i = 0; i < _Descriptors.size(); i++) {
-            const auto& descriptor = *_Descriptors[i];
-            distance_type min = _DistF(descriptor, _Centers[0]);
-            size_t minIdx = 0;
-            for(size_t idx = 1; idx < _Centers.size(); idx++) {
-                distance_type distance = DescriptorUtil::distance(descriptor, _Centers[idx]);
-                if(distance < min) {
-                    min = distance;
-                    minIdx = idx;
+            for(size_t i = 0; i < _Descriptors.size(); i++) {
+                auto query = *_Descriptors[i];
+                size_t index;
+                typename FLANNDist::ResultType distance;
+                FLANNMatrix<decltype(distance)> dis(&distance, 1, 1);
+                FLANNMatrix<size_t> idx(&index, 1, 1);
+                kdTree.knnSearch(FLANNMatrix<Scalar>(query.data(),
+                                1, DescriptorUtil::DescL),
+                        idx, dis, 1, ::flann::SearchParams(-1));
+                loss += distance;
+                currentBelong[i] = index;
+#ifdef FOUND_OPENMP
+                if(++__single_thread_count[omp_get_thread_num()] == 100) {
+                    __single_thread_count[omp_get_thread_num()] = 0;
+                    #pragma omp critical
+                    progress.update(100);   //todo: Add logger switch
                 }
+#else
+                progress.update();  //todo: Add logger switch
+#endif
             }
-            loss += min;
-            currentBelong[i] = minIdx;
+            progress.finished();
+        } else {
+            BarProgress progress(   //todo: Add logger switch
+                    _Descriptors.size() * _Centers.size());
+#ifdef FOUND_OPENMP
+            #pragma omp parallel for reduction(+:loss)
+#endif
+            for(size_t i = 0; i < _Descriptors.size(); i++) {
+                const auto& descriptor = *_Descriptors[i];
+                distance_type min = _DistF(descriptor, _Centers[0]);
+                size_t minIdx = 0;
+                for(size_t idx = 1; idx < _Centers.size(); idx++) {
+                    distance_type distance =
+                            DescriptorUtil::distance(descriptor, _Centers[idx]);
+                    if(distance < min) {
+                        min = distance;
+                        minIdx = idx;
+                    }
+                    if(idx % 100 == 0) {//todo: Add logger switch
+#ifdef FOUND_OPENMP
+                        #pragma omp critical
+#endif
+                        progress.update(100);
+                    }
+                }
+                {//todo: Add logger switch
+                    auto left = _Centers.size() % 100;
+#ifdef FOUND_OPENMP
+                    #pragma omp critical
+#endif
+                    progress.update(left);
+                }
+                loss += min;
+                currentBelong[i] = minIdx;
+            }
         }
         for(size_t i = 0; i < _Descriptors.size(); i++) {
             const auto idx = currentBelong[i];
@@ -246,11 +315,14 @@ void TemplatedKMeans<DescriptorUtil>::process(
             }
             return;
         }
-        // std::cerr << TDBOW_LOG("[DEBUG]: finished iter " << iterCount << ": " << loss);
+        std::cout << "<Iter " << iterCount << ": loss "
+                  << loss / _Descriptors.size() << '>' << std::endl;
         // k-means++ ensures all the clusters has any feature associated with them
 
         // 3. check convergence
-        if(currentBelong == previousBelong)return;
+        if(currentBelong == previousBelong) {
+            return;
+        }
         previousBelong = currentBelong;
         prevLoss = loss;
     }
@@ -274,7 +346,7 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKM(const size_t& _K,
     _Centers.reserve(_K);
     for(size_t i = 0; i < _K; i++) {
         auto idx = randomInt<size_t>(0, choices.size() - 1);
-        _Centers.emplace_back(std::make_shared<Descriptor>(*_Descriptors[choices[idx]]));
+        _Centers.emplace_back(*_Descriptors[choices[idx]]);
         choices[idx] = choices.back();
         choices.pop_back();
     }
@@ -302,18 +374,27 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKMpp(const size_t& _K,
     auto featureIdx = randomInt<size_t>(0, _Descriptors.size() - 1);
     _Centers.emplace_back(*_Descriptors[featureIdx]);
 
+    std::cout << "Start k-means++ initialization." << std::endl;
+    BarProgress progress(_K * _Descriptors.size());
+
     // compute the initial distances
 #ifdef FOUND_OPENMP
     std::vector<distance_type> minDist(_Descriptors.size());
-    #pragma omp parallel for
+    size_t __init_update_count = 0;
+    #pragma omp parallel for reduction(+:__init_update_count)
     for(size_t i = 0; i < _Descriptors.size(); i++) {
         minDist[i] = _F(*_Descriptors[i], _Centers.back());
+        if(++__init_update_count % 1000 == 0) {
+            progress.update(1000);
+        }
     }
+    progress.update(_Descriptors.size() - __init_update_count);
 #else
     std::vector<distance_type> minDist(0);
     minDist.reserve(_Descriptors.size());
     for(const auto& descriptor : _Descriptors) {
         minDist.emplace_back(_F(*descriptor, _Centers.back()));
+        progress.update();
     }
 #endif
 
@@ -321,6 +402,8 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKMpp(const size_t& _K,
         // 2.
         const auto& center = _Centers.back();
 #ifdef FOUND_OPENMP
+        std::vector<unsigned> __single_thread_count(
+                static_cast<size_t>(omp_get_num_procs()));
         #pragma omp parallel for
 #endif
         for(size_t i = 0; i < _Descriptors.size(); i++) {
@@ -328,10 +411,32 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKMpp(const size_t& _K,
             if(distance > 0) {
                 distance = std::min(distance, _F(*_Descriptors[i], center));
             }
+#ifdef FOUND_OPENMP
+            if(++__single_thread_count[omp_get_thread_num()] == 1000) {
+                __single_thread_count[omp_get_thread_num()] = 0;
+                #pragma omp critical
+                progress.update(1000);
+            }
+#else
+            progress.update();
+#endif
         }
+#ifdef FOUND_OPENMP
+        auto __left_updated = std::accumulate(
+                __single_thread_count.begin(), __single_thread_count.end(), 0u);
+        progress.update(__left_updated);
+#endif
 
         // 3.
+#ifdef FOUND_OPENMP
+        distance_type sum = 0;
+        #pragma omp parallel for reduction(+:sum)
+        for(size_t i = 0; i < minDist.size(); i++) {
+            sum += minDist[i];
+        }
+#else
         distance_type sum = std::accumulate(minDist.begin(), minDist.end(), 0.);
+#endif
         if(sum == 0) {
             // Trivial case: one cluster per feature
             return;
@@ -348,6 +453,8 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKMpp(const size_t& _K,
         }
         _Centers.emplace_back(*_Descriptors[idx - 1]);
     }
+    progress.finished();
+    std::cerr << TDBOW_LOG("[DEBUG]: Finish k-means++ initialization");
 }
 
 template <class DescriptorUtil>
@@ -379,9 +486,11 @@ void TemplatedKMeans<DescriptorUtil>::initiateClustersKM2nd(const size_t& _K,
         choices[idx] = choices.back();
         choices.pop_back();
     }
+    std::cerr << TDBOW_LOG("[DEBUG]: Start k-means 2nd initialization at " << seeds.size());
     std::vector<std::vector<DescriptorConstPtr>> ignored;
-    TemplatedKMeans<DescriptorUtil>(_K).process(
-            seeds, _Centers, ignored, initiateClustersKMpp, _F, _M);
+    TemplatedKMeans<DescriptorUtil>(_K).process(seeds,
+            _Centers, ignored, initiateClustersKMpp, _F, _M);
+    std::cerr << TDBOW_LOG("[DEBUG]: Finish k-means 2nd initialization at " << seeds.size());
 }
 
 /* ********************************************************************************

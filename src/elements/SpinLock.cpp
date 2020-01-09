@@ -21,7 +21,7 @@
    * Last Modified : smallchimney
    * Modified Time : 2019-12-05 17:07:41
 ************************************************************************* */
-#include <TDBoW/SpinLock.h>
+#include <TDBoW/elements/SpinLock.h>
 
 namespace TDBoW {
 

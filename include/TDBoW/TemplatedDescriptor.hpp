@@ -51,13 +51,13 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-11-20 10:37:21
    * Last Modified : smallchimney
-   * Modified Time : 2020-01-03 19:48:50
+   * Modified Time : 2020-01-10 17:54:04
 ************************************************************************* */
 #ifndef __ROCKAUTO_TDBOW_TEMPLATED_DESCRIPTOR_HPP__
 #define __ROCKAUTO_TDBOW_TEMPLATED_DESCRIPTOR_HPP__
 
-#include "traits.h"
-#include "Exception.h"
+#include "utils/traits.h"
+#include "utils/Exception.h"
 
 #include <iostream>
 #include <vector>

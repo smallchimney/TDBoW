@@ -43,12 +43,12 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-12-01 21:22:57
    * Last Modified : smallchimney
-   * Modified Time : 2019-12-13 17:39:28
+   * Modified Time : 2020-04-02 16:47:55
 ************************************************************************* */
 #ifndef __ROCKAUTO_TDBOW_CV_BRIDGE_H__
 #define __ROCKAUTO_TDBOW_CV_BRIDGE_H__
 
-#include "TDBoW.h"
+#include "TDBoW.h"                  // this include the <eigen3/Eigen/Core>
 #include <opencv2/core/eigen.hpp>   // this must be included after <eigen3/Eigen/Core>
 
 namespace TDBoW {

@@ -58,8 +58,8 @@
 #define __ROCKAUTO_TDBOW_TEMPLATED_DATABASE_HPP__
 
 #include "IndexedFile.h"
-#include "TemplatedVocabulary.hpp"
 #include "QueryResults.h"
+#include "TemplatedVocabulary.hpp"
 
 namespace TDBoW {
 

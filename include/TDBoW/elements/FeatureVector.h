@@ -46,151 +46,88 @@
 //POSSIBILITY OF SUCH DAMAGE.
 
 /**
- * File: BowVector.h
- * Date: March 2011
+ * File: FeatureVector.h
+ * Date: November 2011
  * Author: Dorian Galvez-Lopez
- * Description: bag of words vector
+ * Description: feature vector
  * License: see the LICENSE.txt file
- *
  */
 
-#ifndef __ROCKAUTO_TDBOW_BOW_VECTOR_H__
-#define __ROCKAUTO_TDBOW_BOW_VECTOR_H__
+#ifndef __ROCKAUTO_TDBOW_FEATURE_VECTOR_H__
+#define __ROCKAUTO_TDBOW_FEATURE_VECTOR_H__
 
-#include "traits.h"
-#include "SpinLock.h"
-
-#include <iostream>
-#include <map>
-#include <vector>
+#include "BowVector.h"
 
 namespace TDBoW {
 
-/// Id of words
-typedef unsigned int WordId;
-
-/// Value of a word
-typedef double WordValue;
-
-/// Id of nodes in the vocabulary tree
-typedef unsigned int NodeId;
-
-/// L-norms for normalization
-enum LNorm {
-    L1,
-    L2
-};
-
-/// Weighting type
-enum WeightingType {
-    TF_IDF,
-    TF,
-    IDF,
-    BINARY
-};
-
-/// Scoring type
-enum ScoringType {
-    L1_NORM,
-    L2_NORM,
-    CHI_SQUARE,
-    KL,
-    BHATTACHARYYA,
-    DOT_PRODUCT
-};
-
 /**
- * @brief  Vector of words to represent images.
- *         Standard map with two thread-safety function,
+ * @brief  Vector of nodes with indexes of local features.
+ *          Standard map with two thread-safety function,
  *         note that the implement is not complete thread_safety.
  *         Take care when using original std::map's methods
  *         in multiply threads context.
  * @author smallchimney
  */
-class BowVector: public std::map<WordId, WordValue> {
+class FeatureVector: public std::map<NodeId, std::vector<size_t>> {
 protected:
-	template <typename T>
-	using trait = traits::basic_traits<T>;
-
-	typedef std::map<WordId, WordValue> Base;
+    template <typename T>
+    using trait = traits::basic_traits<T>;
 
 public:
-	typedef trait<BowVector>::Ptr      Ptr;
-	typedef trait<BowVector>::ConstPtr ConstPtr;
-
-	// continue public some declaring
-	typedef Base::iterator       iterator;
-	typedef Base::const_iterator const_iterator;
-
-	/** 
-	 * Constructor
-	 */
-	BowVector() : m_bLocked(false) {}
-
-	BowVector(const BowVector& _Obj);
-
-	/**
-	 * Destructor
-	 */
-	~BowVector() = default;
-
-	BowVector& operator =(const BowVector& _Obj);
-
-	/**
-	 * @brief Adds a value to a word value existing in the vector, or creates a new
-	 * 		  word with the given value
-	 * @param id word id to look for
-	 * @param v  value to create the word with, or to add to existing word
-	 */
-	void addWeight(WordId _ID, WordValue _Val);
-	
-	/**
-	 * @brief Adds a word with a value to the vector only if this does not exist yet
-	 * @param _ID   Word id to look for
-	 * @param _Val  Value to give to the word if this does not exist
-	 */
-	void addIfNotExist(WordId _ID, WordValue _Val);
-
-	/**
-	 * @brief L1-Normalizes the values in the vector
-	 * @param _NormType   L1 or L2
-	 */
-	void normalize(LNorm _NormType);
-	
-	/**
-	 * @brief Prints the content of the bow vector
-	 * @param _Out stream
-	 * @param _Vec bow vector
-	 * @return     ostream
-	 */
-	friend std::ostream& operator<<(std::ostream& _Out, const BowVector& _Vec);
-	
-	/**
-	 * @brief Saves the bow vector as a vector in a binary file
-	 * @param _Filename
-	 */
-    void saveBinary(const std::string& _Filename) const;
+    typedef trait<FeatureVector>::Ptr      Ptr;
+    typedef trait<FeatureVector>::ConstPtr ConstPtr;
 
     /**
-	 * @brief Load the bow vector as a vector in a binary file
-	 * @param _Filename
-	 */
-    void loadBinary(const std::string& _Filename);
+     * Constructor
+     */
+    FeatureVector(): m_bLocked(false) {};
+
+    FeatureVector(const FeatureVector& _Obj);
 
     /**
-	 * @brief Saves the bow vector as a vector in a MatLab file
-	 * @param _Filename
-	 * @param _Width     number of words in the vocabulary
-	 */
-    void saveM(const std::string& _Filename, size_t _Width) const;
+     * Destructor
+     */
+    ~FeatureVector() = default;
+
+    /**
+     * @brief Adds a feature to an existing node, or adds a new node with an initial
+     *        feature
+     * @param _ID         node id to add or to modify
+     * @param _FeatureIdx index of feature to add to the given node
+     */
+    void addFeature(NodeId _ID, size_t _FeatureIdx);
+
+    /**
+     * @brief  Merge two FeatureVector into one, this is only used for merge small parts
+	 *         of FeatureVector into a complete one
+     * @author smallchimney
+     * @param  _Another  Another feature vector
+     * @return           Combined feature vector
+     */
+    FeatureVector& operator+=(const FeatureVector& _Another);
+
+    /**
+     * @brief Sends a string versions of the feature vector through the stream
+     * @param _Out stream
+     * @param _Vec feature vector
+     */
+    friend std::ostream& operator<<(std::ostream& _Out, const FeatureVector& _Vec);
+
+    /**
+     * @brief Sends a string versions of the feature vector through the stream
+     * @param _Out stream
+     * @param pair value type of feature vector
+     */
+    friend std::ostream& operator<<(std::ostream& _Out, const FeatureVector::value_type& pair);
 
 private:
     /** @brief set as a label who get the control */
     mutable std::atomic_bool m_bLocked;
 };
-typedef BowVector::Ptr      BowVectorPtr;
-typedef BowVector::ConstPtr BowVectorConstPtr;
+typedef FeatureVector::Ptr      FeatureVectorPtr;
+typedef FeatureVector::ConstPtr FeatureVectorConstPtr;
 
 } // namespace TDBoW
 
-#endif	// __ROCKAUTO_TDBOW_BOW_VECTOR_H__
+#endif  // __ROCKAUTO_TDBOW_FEATURE_VECTOR_H__
+

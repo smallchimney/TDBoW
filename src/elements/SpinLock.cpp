@@ -13,51 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **************************************************************************/
-
-/*! \mainpage TDBoW Library
- *
- * TDBoW library for C++:
- * 3D bag-of-word image database for pointcloud retrieval.
- *
- * Written by Yichong Xu,
- * Lanzhou University, China
- *
- * Forked from Dorian Galvez-Lopez,
- * University of Zaragoza
- *
- * \section requirements Requirements
- * This library requires the Eigen, FLANN, yaml-cpp
- * and Boost libraries.
- *
- * This library already included quicklz library
- *
- * For better experience, feature extraction libraries
- * such as OpenCV or PCL are recommend to use.
- *
- * \section citation Citation
- * If you use this software in academic works, please cite:
- <pre>
-   @@ARTICLE{
-   todo: Still work-in-progress
-   }
-  }
- </pre>
- *
- */
-
 /* *************************************************************************
-   * File Name     : TDBoW.h
+   * File Name     : SpinLock.cpp
    * Author        : smallchimney
    * Author Email  : smallchimney@foxmail.com
-   * Created Time  : 2019-11-20 10:37:21
+   * Created Time  : 2019-12-04 13:43:21
    * Last Modified : smallchimney
-   * Modified Time : 2020-04-06 23:44:46
+   * Modified Time : 2019-12-05 17:07:41
 ************************************************************************* */
+#include <TDBoW/elements/SpinLock.h>
 
-#ifndef __ROCKAUTO_TDBOW_H__
-#define __ROCKAUTO_TDBOW_H__
+namespace TDBoW {
 
-#include "elements/TemplatedDatabase.hpp"
+SpinLock::SpinLock(std::atomic_bool& _Flag): m_bFlag(_Flag) {
+    while(true) {
+        bool excepted = false;
+        if(m_bFlag.compare_exchange_strong(excepted, true)) {
+            break;
+        }
+    }
+}
+SpinLock::~SpinLock() {
+    m_bFlag = false;
+}
 
-#endif // __ROCKAUTO_TDBOW_H__
-
+}   // namespace TDBoW

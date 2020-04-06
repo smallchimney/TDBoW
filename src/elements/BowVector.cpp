@@ -25,7 +25,7 @@
 #include <fstream>
 #include <cmath>
 
-#include <TDBoW/BowVector.h>
+#include <TDBoW/elements/BowVector.h>
 
 namespace TDBoW {
 
@@ -83,6 +83,36 @@ void BowVector::addIfNotExist(const WordId _ID, const WordValue _Val) {
     if(vit == this->end() || (this->key_comp()(_ID, vit->first))) {
         this->insert(vit, BowVector::value_type(_ID, _Val));
     }
+}
+
+// --------------------------------------------------------------------------
+
+BowVector& BowVector::operator+=(const BowVector& _Another) {
+    if(_Another.m_bLocked) {
+        while(true) {
+            bool excepted = false;
+            if(_Another.m_bLocked.compare_exchange_strong(excepted, true)) {
+                break;
+            }
+        }
+    }
+    SpinLock locker(m_bLocked); // please be careful for the dead lock
+    auto iter1 = this -> begin();
+    auto iter2 = _Another.begin();
+    while(iter1 != this -> end() && iter2 != _Another.end()) {
+        if(iter1 -> first == iter2 -> first) {
+            iter1++ -> second += iter2++ -> second;
+        } else if(iter1 -> first < iter2 -> first) {
+            iter1 = this -> lower_bound(iter2 -> first);
+        } else {
+            this -> insert(this -> end(), *iter2++);
+        }
+    }
+    while(iter2 != _Another.end()) {
+        this -> insert(this -> end(), *iter2++);
+    }
+    _Another.m_bLocked = false;
+    return *this;
 }
 
 // --------------------------------------------------------------------------

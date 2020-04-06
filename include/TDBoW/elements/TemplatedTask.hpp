@@ -1,5 +1,5 @@
 /**************************************************************************
- * Copyright (c) 2019-2020 Chimney Xu. All Rights Reserve.
+ * Copyright (c) 2020 Chimney Xu. All Rights Reserve.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,36 @@
  * limitations under the License.
  **************************************************************************/
 /* *************************************************************************
-   * File Name     : SpinLock.cpp
+   * File Name     : TemplatedTask.hpp
    * Author        : smallchimney
    * Author Email  : smallchimney@foxmail.com
-   * Created Time  : 2019-12-04 13:43:21
+   * Created Time  : 2020-04-05 20:28:45
    * Last Modified : smallchimney
-   * Modified Time : 2019-12-05 17:07:41
+   * Modified Time : 2020-04-05 20:37:30
 ************************************************************************* */
-#include <TDBoW/SpinLock.h>
+
+#ifndef __ROCKAUTO_TDBOW_TEMPLATED_TASK_HPP__
+#define __ROCKAUTO_TDBOW_TEMPLATED_TASK_HPP__
+
+#include "BowVector.h"
+#include "TemplatedDescriptor.hpp"
 
 namespace TDBoW {
 
-SpinLock::SpinLock(std::atomic_bool& _Flag): m_bFlag(_Flag) {
-    while(true) {
-        bool excepted = false;
-        if(m_bFlag.compare_exchange_strong(excepted, true)) {
-            break;
-        }
-    }
-}
-SpinLock::~SpinLock() {
-    m_bFlag = false;
-}
+/** @brief Vocabulary build task */
+template <typename TScalar, size_t DescL>
+struct sTask {
+    typedef TemplatedDescriptorUtil<TScalar, DescL> util;
+    typedef typename util::DescriptorConstPtr DescriptorConstPtr;
 
-}   // namespace TDBoW
+    typedef std::tuple<
+            NodeId,                           // Task's parent node ID
+            std::vector<DescriptorConstPtr>,  // Descriptors content address
+            unsigned,                         // BoW tree nodes level
+            std::vector<size_t>               // Descriptors' indices
+    > Task;
+};
+
+} // namespace TDBoW
+
+#endif //__ROCKAUTO_TDBOW_TEMPLATED_TASK_HPP__

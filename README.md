@@ -95,7 +95,7 @@ is designed as `Eigen::Matrix<uint8_t, 1, 32, Eigen::RowMajor>`, so we set `TSca
 set `L` as `32`.
 
 Default `meanValue`, `distance`, `toString` and `fromString` methods are already
-[implemented](include/TDBoW/TemplatedDescriptor.hpp), but can still easily override by lambda methods.
+[implemented](include/TDBoW/elements/TemplatedDescriptor.hpp), but can still easily override by lambda methods.
 
 ### Use TDBoW in PC mode
 

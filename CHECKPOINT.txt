@@ -1,0 +1,83 @@
+======================================================================================
+TDBoW CKPT Standard - Version 0.1
+---------------------------------
+We don't check the dataset in this version, because the dataset maybe not in ordered.
+======================================================================================
+Head:
+1byte       uint8             Header      "'T'^'D'^'B'^'o'^'W'"
+1byte       uint8             MajorVer    "TDBoW CKPT major version"
+1byte       uint8             MinorVer    "TDBoW CKPT minor version"
+8bytes      uint64            DescL       "Descriptor Length"
+8bytes      uint64            DataScale   "Size of train dataset"
+4bytes      uint32            BowL        "Bag-of-Word level count"
+4bytes      uint32            BowK        "Bag-of-Word group count in single level"
+4bytes      int32             Status      "Current creating processing stage"
+======================================================================================
+1. Data loaded:
+-----------------------------
+Descripture:
+Build/Load the checkpoint instance and check the head info if old checkpoint existed.
+-----------------------------
+Timepoint:
+Right after the initialization (dataset flatten and wise-K maybe).
+-----------------------------
+Body:
+None
+======================================================================================
+2. Before clustering:
+-----------------------------
+Descripture:
+Save the undone clustering tasks.
+-----------------------------
+Timepoint:
+Start of each clustering task.
+-----------------------------
+Body:
+4bytes            uint32        NodesLen    "Built nodes count"
+[
+    4bytes            uint32        NodeId      "Node ID"
+    4bytes            uint32        NodePid     "Node's parent ID"
+    ${DescL}*sizeof(${Scalar})bytes Descriptor  "Descriptor content"
+] * NodeLen
+8bytes            uint64        TasksLen    "Undone tasks count"
+[
+    4bytes            uint32        NodeId      "The ID of the clustering node"
+    4bytes            uint32        Level       "The level of the clustering result"
+    8bytes            uint64        NodeScale   "Size of node's cluster"
+    [
+        8bytes            uint64        Indices     "Descriptor index from train dataset"
+    ]
+] * TasksLen
+======================================================================================
+3. Cluster iteration:
+-----------------------------
+Descripture:
+Save the clustering iteration.
+-----------------------------
+Timepoint:
+right after each clustering iter.
+-----------------------------
+Body:
+Body {Before clustering}
+8bytes            uint64        IterNum     "Current iteration count(1, 2, 3...)"
+8bytes            float64       PrevLoss    "Current iteration loss"
+[
+    8bytes            uint64        Belong      "Cluster result of specific descriptor"
+] * ${descriptors.size()}
+======================================================================================
+4. Cluster end:
+-----------------------------
+Descripture:
+Save the clustering result.
+-----------------------------
+Timepoint:
+right after the whole clustering.
+-----------------------------
+Body:
+4bytes            uint32        NodesLen    "Built nodes count"
+[
+    4bytes            uint32        NodeId      "Node ID"
+    4bytes            uint32        NodePid     "Node's parent ID"
+    ${DescL}*sizeof(${Scalar})bytes Descriptor  "Descriptor content"
+] * NodeLen
+======================================================================================

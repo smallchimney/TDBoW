@@ -61,11 +61,13 @@
 #include <algorithm>
 #include <queue>
 
-#include "elements/FeatureVector.h"
-#include "elements/BowVector.h"
-#include "elements/ScoringObject.h"
+#include "FeatureVector.h"
+#include "ScoringObject.h"
 #include "TemplatedDescriptor.hpp"
-#include "TemplatedKMeans.hpp"
+#include "TemplatedNode.hpp"
+#include "TemplatedTask.hpp"
+#include <TDBoW/utils/TemplatedKMeans.hpp>
+#include <TDBoW/utils/TemplatedCheckPoint.hpp>
 #include <quicklz.h>
 
 #include <boost/dynamic_bitset.hpp>
@@ -96,7 +98,14 @@ public:
     typedef TScalar ScalarType;
     typedef TemplatedDescriptorUtil<TScalar, DescL> util;
     typedef TemplatedKMeans<util> KMeansUtil;
+    typedef TemplatedCheckPoint<TScalar, DescL> CheckPointUtil;
+    typedef typename CheckPointUtil::Ptr CheckPointUtilPtr;
+    /* Type define */
+    typedef sNode<TScalar, DescL> Node;
+    typedef std::vector<Node> Nodes;
+    typedef std::unique_ptr<Nodes> NodesPtr;
     TDBOW_DESCRIPTOR_DEF(util)
+    friend CheckPointUtil;
 
     // typedef for Flann
     typedef ::flann::L2<TScalar> FLANNDist;
@@ -107,6 +116,8 @@ public:
 
     /** The mode of operation when loading a vocabulary */
     enum LoadMode {AUTO, BINARY, YAML};
+
+    typedef typename sTask<TScalar, DescL>::Task Task;
 
     // Constructors
 
@@ -156,9 +167,19 @@ public:
      * @breif Creates a vocabulary from the training features with the already
      * defined parameters
      * @param _TrainingData  The train dataset
-     * @param _WiseK         whether dynamic adjust the K parameter
+     * @param _Log           The logger filename, keep empty in small scale.
+     *                       In case logger was active, will automatically
+     *                       save/load the checkpoint during the creating,
+     *                       all the checkpoints will be removed after the
+     *                       processing.
+     * @param _WiseK         Whether dynamic adjust the K parameter
+     * @param _ConsoleLog    Whether log to the console, only valid if
+     *                       {@code _Log} is not empty.
      */
-    void create(const ConstDataSet& _TrainingData, bool _WiseK = true) noexcept(false);
+    void create(const ConstDataSet& _TrainingData,
+                const std::string& _Log = "",
+                bool _WiseK = true,
+                bool _ConsoleLog = true) noexcept(false);
 
     /**
      * @breif Creates a vocabulary from the training features, setting the branching
@@ -166,10 +187,19 @@ public:
      * @param _TrainingData
      * @param _K             Branching factor
      * @param _L             Depth levels
+     * @param _Log           The logger filename, keep empty in small scale.
+     *                       In case logger was active, will automatically
+     *                       save/load the checkpoint during the creating,
+     *                       all the checkpoints will be removed after the
+     *                       processing.
+     * @param _ConsoleLog    Whether log to the console, only valid if
+     *                       {@code _Log} is not empty.
      * @param _Weighting     Weighting type
      * @param _Scoring       Scoring type
      */
-    void create(const ConstDataSet& _TrainingData, unsigned _K, unsigned _L = 1,
+    void create(
+            const ConstDataSet& _TrainingData, unsigned _K, unsigned _L = 1,
+            const std::string& _Log = "", bool _ConsoleLog = true,
             WeightingType _Weighting = TF_IDF, ScoringType _Scoring = L1_NORM) noexcept(false);
 
     // Function methods
@@ -440,49 +470,6 @@ public:
 
 protected:
 
-    /// Tree node
-    typedef struct sNode {
-        /// Node id
-        NodeId id;
-        /// Weight if the node is a word
-        WordValue weight, weightBackup;
-        /// Children
-        std::vector<NodeId> children;
-        /// Parent node (undefined in case of root)
-        NodeId parent;
-        /// Node descriptor
-        Descriptor descriptor;
-
-        /// Word id if the node is a word
-        WordId word_id;
-
-        typedef std::shared_ptr<sNode> Ptr;
-        typedef std::shared_ptr<sNode const> ConstPtr;
-
-        /**
-         * Empty constructor
-         */
-        sNode(): id(0), weight(0), weightBackup(0), parent(0), word_id(0){}
-
-        /**
-         * Constructor
-         * @param _id node id
-         */
-        sNode(NodeId _id): id(_id), weight(0), weightBackup(0), parent(0), word_id(0){}
-
-        /**
-         * Returns whether the node is a leaf node
-         * @return true iff the node is a leaf
-         */
-        inline bool isLeaf() const { return children.empty(); }
-    } Node;
-
-    /// Pointer to descriptor
-    typedef typename Node::Ptr NodePtr;
-    typedef typename Node::ConstPtr NodeConstPtr;
-
-protected:
-
     /**
      * @breif Creates an instance of the scoring object according to
      *        the value of {@code m_eScoring}.
@@ -567,7 +554,7 @@ protected:
     /// Tree nodes pointer
     /// Since the vocabulary usually not in a small scale,
     /// so make it unique to avoid redundant copy
-    std::unique_ptr<std::vector<Node>> m_pNodes;
+    NodesPtr m_pNodes;
 
     /// Words of the vocabulary (tree leaves)
     /// this condition holds: (*m_pNodes)[m_aWords[wid]] -> word_id == wid
@@ -582,6 +569,8 @@ protected:
      * @author smallchimney
      */
     FLANNIndexPtr m_pWordsSearchTree;
+
+    CheckPointUtilPtr m_pCheckPoint = nullptr;
 
 };
 
@@ -660,8 +649,8 @@ void TemplatedVocabulary<TScalar, DescL>::_createScoringObject() {
  ******************************************************************************** */
 
 template <typename TScalar, size_t DescL>
-void TemplatedVocabulary<TScalar, DescL>::create(
-        const ConstDataSet& _TrainingData, bool _WiseK) noexcept(false) {
+void TemplatedVocabulary<TScalar, DescL>::create(const ConstDataSet& _TrainingData,
+        const std::string& _Log, bool _WiseK, const bool _ConsoleLog) noexcept(false) {
     // wise K adjust require TDBoW's format vocabulary, set the level as just single layer
     if(_WiseK && m_uiL != 1)_WiseK = false;
 
@@ -681,29 +670,52 @@ void TemplatedVocabulary<TScalar, DescL>::create(
         auto expectedSize = static_cast<size_t>((pow(m_uiK, m_uiL + 1) - 1) / (m_uiK - 1));
         m_pNodes -> reserve(expectedSize); // avoid allocations when creating the tree
     }
+
+    // For checkpoint, maybe we should check the digest of dataset, but the
+    // dataset is unordered. As now we need users to grantee the dataset
+    // is unchanged in case the last creating is failed as well the tag name
+    // is unchanged, too.
+    if(!_Log.empty()) {
+        m_pCheckPoint.reset(new CheckPointUtil(
+                _Log, features.size(), m_uiK, m_uiL, _ConsoleLog));
+    } else {
+        m_pCheckPoint.reset();
+    }
+
     // Insert the root node
     m_pNodes -> emplace_back(0);
     // Create the tree
-    _buildTree(features);
+    // Checkpoint mini require: K L
+    if(!m_pCheckPoint || !(m_pCheckPoint -> completed(
+            CheckPointUtil::CLUSTER_END)))_buildTree(features);
     // Create the words
+    // No checkpoint saving inside, only load
     _createWords();
     // build the search tree
+    // No checkpoint, this operation using flann in this version
     _buildSearchTree();
     // Set the initialized label
     m_bInit = !empty();
     // Set the weight of each node of the tree
+    // No checkpoint, this operation based on flann result
     _setNodeWeights(_TrainingData);
+    // After this, the checkpoint can be removed safety.
+    if(m_pCheckPoint) {
+        // So will remove the checkpoint when program exit
+        m_pCheckPoint -> setStatus(CheckPointUtil::FINISHED);
+    }
 }
 
 template <typename TScalar, size_t DescL>
 void TemplatedVocabulary<TScalar, DescL>::create(
         const ConstDataSet& _TrainingData, const unsigned _K, const unsigned _L,
+        const std::string& _Log, const bool _ConsoleLog,
         const WeightingType _Weighting, const ScoringType _Scoring) noexcept(false) {
     m_uiK = _K; m_uiL = _L;
     clear(true);
     setWeightingType(_Weighting);
     setScoringType(_Scoring);
-    create(_TrainingData);
+    create(_TrainingData, _Log, _ConsoleLog, true);
 }
 
 /* ********************************************************************************
@@ -736,23 +748,23 @@ void TemplatedVocabulary<TScalar, DescL>::transform(
         return;
     }
 
-    std::function<void(WordId, WordValue)> f = nullptr;
+    void(BowVector::*bowAdd)(WordId, WordValue) = nullptr;
     switch(m_eWeighting) {
         case WeightingType::TF: case WeightingType::TF_IDF:
-            f = std::bind(&BowVector::addWeight, &_BowVec,
-                          std::placeholders::_1, std::placeholders::_2);
+            bowAdd = &BowVector::addWeight;
             break;
 
         case WeightingType::IDF: case WeightingType::BINARY:
-            f = std::bind(&BowVector::addIfNotExist, &_BowVec,
-                          std::placeholders::_1, std::placeholders::_2);
+            bowAdd = &BowVector::addIfNotExist;
             break;
     }
-    assert(f != nullptr);
-    size_t idx = 0;
+    assert(bowAdd != nullptr);
 #ifdef FOUND_OPENMP
+    std::vector<BowVector> bowVectors(
+            static_cast<size_t>(omp_get_num_procs()));
+    std::vector<FeatureVector> featVectors(
+            static_cast<size_t>(omp_get_num_procs()));
     #pragma omp parallel for
-#endif
     for(size_t i = 0; i < _Features.size(); i++) {
         const auto& feature = _Features[i];
         WordId id = 0;
@@ -763,13 +775,38 @@ void TemplatedVocabulary<TScalar, DescL>::transform(
         // If not stopped
         if(w > 0) {
             // NOTE: These two method must be safety in multi-threads
-            f(id, w);
+            (bowVectors[omp_get_thread_num()].*bowAdd)(id, w);
             if(_FeatVec) {
-                _FeatVec -> addFeature(nid, idx);
+                featVectors[omp_get_thread_num()].addFeature(nid, i);
             }
         }
-        idx++;
     }
+    for(const auto& bowVector : bowVectors) {
+        _BowVec += bowVector;
+    }
+    if(_FeatVec) {
+        for(const auto& featVector : featVectors) {
+            _FeatVec -> operator+=(featVector);
+        }
+    }
+#else
+    for(size_t i = 0; i < _Features.size(); i++) {
+        const auto& feature = _Features[i];
+        WordId id = 0;
+        WordValue w = 0.;
+        // TF_IDF/IDF -- idf value
+        // TF/BINARY  -- 1
+        NodeId nid = _transform(feature, id, w, _LevelsUp);    // thread safe method
+        // If not stopped
+        if(w > 0) {
+            // NOTE: These two method must be safety in multi-threads
+            (_BowVec.*bowAdd)(id, w);
+            if(_FeatVec) {
+                _FeatVec -> addFeature(nid, i);
+            }
+        }
+    }
+#endif
     // Normalize
     LNorm norm{};
     if(m_pScoringObj -> mustNormalize(norm)) {
@@ -1466,15 +1503,48 @@ NodeId TemplatedVocabulary<TScalar, DescL>::_transform(
 template <typename TScalar, size_t DescL>
 void TemplatedVocabulary<TScalar, DescL>::_buildTree(
         const std::vector<DescriptorConstPtr>& _Descriptors) {
-    typedef std::tuple<NodeId, std::vector<DescriptorConstPtr>, unsigned> Task;
+    bool loadRequired = m_pCheckPoint ?
+            m_pCheckPoint -> completed(CheckPointUtil::CLUSTER_BEG) : false;
+
     std::queue<Task> tasks;
-    tasks.push(std::make_tuple(0, _Descriptors, 1));
+    // Prepare for the init tasks
+    if(!loadRequired) {
+        std::vector<size_t> originIndices(_Descriptors.size());
+#ifdef FOUND_OPENMP
+        #pragma omp parallel for
+#endif
+        for(size_t i = 1; i < _Descriptors.size(); i++) {
+            originIndices[i] = i;
+        }
+        tasks.push(std::make_tuple(0, _Descriptors, 1, originIndices));
+    } else {
+        m_pCheckPoint -> ckptLoadInfo();
+        m_pCheckPoint -> ckptLoadNodes(m_pNodes);
+        m_pCheckPoint -> ckptLoadTasks(tasks, _Descriptors);
+        if(m_pCheckPoint -> getStatus() == CheckPointUtil::CLUSTER_BEG) {
+            m_pCheckPoint -> ckptLoaded();
+        }
+    }
 
     while(!tasks.empty()) {
+        if(m_pCheckPoint) {
+            if(!loadRequired) {
+                m_pCheckPoint -> setStatus(CheckPointUtil::CLUSTER_BEG);
+                m_pCheckPoint -> ckptSaveInfo();
+                m_pCheckPoint -> ckptSaveNodes(m_pNodes);
+                m_pCheckPoint -> ckptSaveTasks(tasks);
+                m_pCheckPoint -> ckptDone();
+                m_pCheckPoint -> output("New task start.\n");
+            } else {
+                loadRequired = false;
+            }
+        }
+
         const auto& task = tasks.front();
         const auto& descriptors = std::get<1>(task);
         const auto parentId = std::get<0>(task);
         const auto level = std::get<2>(task);
+        const auto indices = std::get<3>(task);
         if(descriptors.empty()) {
             tasks.pop();
             continue;
@@ -1483,8 +1553,20 @@ void TemplatedVocabulary<TScalar, DescL>::_buildTree(
         // Features associated to each cluster using K-means
         DescriptorArray centers(0);
         std::vector<std::vector<DescriptorConstPtr>> clusters(0);
-        KMeansUtil(m_uiK).process(descriptors, centers, clusters);
+        const auto belong = KMeansUtil(m_uiK)
+                .process(descriptors, centers, clusters, m_pCheckPoint);
+        assert(descriptors.size() == belong.size());
         assert(centers.size() == clusters.size());
+        std::vector<std::vector<size_t>> childIndices(centers.size());
+#ifdef FOUND_OPENMP
+        #pragma omp parallel for
+#endif
+        for(size_t i = 0; i < centers.size(); i++) {
+            childIndices[i].reserve(clusters[i].size());
+        }
+        for(size_t i = 0; i < descriptors.size(); i++) {
+            childIndices[belong[i]].emplace_back(indices[i]);
+        }
         tasks.pop();    // no need for descriptors later
 
         // Create children nodes
@@ -1500,9 +1582,19 @@ void TemplatedVocabulary<TScalar, DescL>::_buildTree(
         if(level < m_uiL) {
             for(size_t i = 0; i < clusters.size(); i++) {
                 const auto& childId = (*m_pNodes)[parentId].children[i];
-                tasks.push(std::make_tuple(childId, clusters[i], level + 1));
+                tasks.push(std::make_tuple(
+                        childId, clusters[i], level + 1, childIndices[i]));
             }
         }
+    }
+
+    // Updating checkpoint
+    if(m_pCheckPoint) {
+        m_pCheckPoint -> setStatus(CheckPointUtil::CLUSTER_END);
+        m_pCheckPoint -> ckptSaveInfo();
+        m_pCheckPoint -> ckptSaveNodes(m_pNodes);
+        m_pCheckPoint -> ckptDone();
+        m_pCheckPoint -> output("All nodes clustered.\n");
     }
 }
 
@@ -1522,7 +1614,16 @@ void TemplatedVocabulary<TScalar, DescL>::_buildSearchTree() {
 
 template <typename TScalar, size_t DescL>
 void TemplatedVocabulary<TScalar, DescL>::_createWords() {
-    if(!m_pNodes || m_pNodes -> size() <= 1)return;
+    if(!m_pNodes || m_pNodes -> empty())return;
+    if(m_pNodes -> size() == 1) {
+        if(!m_pCheckPoint)return;
+        if(m_pCheckPoint -> getStatus() == CheckPointUtil::CLUSTER_END) {
+            // Load the cluster results
+            m_pCheckPoint -> ckptLoadInfo();
+            m_pCheckPoint -> ckptLoadNodes(m_pNodes);
+            m_pCheckPoint -> ckptLoaded();
+        }
+    }
     m_aWords.reserve(static_cast<size_t>(pow(m_uiK, m_uiL)));
     for(auto& node : *m_pNodes) {
         if(node.isLeaf()) {

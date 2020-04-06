@@ -26,6 +26,9 @@
 #include <algorithm>
 
 #include <TDBoW/elements/ScoringObject.h>
+#ifdef FOUND_OPENMP
+#include <omp.h>
+#endif
 
 namespace TDBoW {
 
@@ -68,6 +71,48 @@ QueryResults GeneralScoring::score(const BowVector& _Vec,
         const InvertedFile& _InvertedFile, const unsigned _MaxResults,
         const EntryId _MaxId, const unsigned _MinCommon) const {
     std::map<EntryId, Record> scores;
+#ifdef FOUND_OPENMP
+    std::vector<std::map<EntryId, Record>> __scores(
+            static_cast<size_t>(omp_get_num_procs()));
+    std::vector<const BowVector::value_type*> dataAddr(0);
+    dataAddr.reserve(_Vec.size());
+    for(const auto& word : _Vec) {
+        dataAddr.emplace_back(&word);
+    }
+    #pragma omp parallel for
+    for(size_t i = 0; i < _Vec.size(); i++) {
+        const auto& word = *dataAddr[i];
+        const auto& wordId = word.first;
+        const auto& qValue = word.second;
+        auto& score = __scores[omp_get_thread_num()];
+        // IFRows are sorted in ascending entry_id order
+        for(const auto& pair : _InvertedFile[wordId]) {
+            const auto& entryId = pair.entry_id;
+            const auto& dValue  = pair.word_weight;
+            if(_MaxId && entryId >= _MaxId)continue;
+            WordValue value = m_cCalculator(qValue, dValue);
+            if(value == 0)continue;
+            auto iter = score.lower_bound(entryId);
+            if(iter != score.end() && !(score.key_comp()(entryId, iter -> first))) {
+                iter -> second.first += value;
+                iter -> second.second++;
+            } else {
+                score.insert(iter, std::make_pair(entryId, std::make_pair(value, 1)));
+            }
+        } // for each inverted row
+    }
+    for(const auto& _score : __scores) {
+        for(const auto& pair : _score) {
+            auto iter = scores.lower_bound(pair.first);
+            if(iter != scores.end() && !(scores.key_comp()(pair.first, iter -> first))) {
+                iter -> second.first += pair.second.first;
+                iter -> second.second += pair.second.second;
+            } else {
+                scores.insert(iter, pair);
+            }
+        }
+    }
+#else
     for(const auto& word : _Vec) {
         const auto &wordId = word.first;
         const auto &qValue = word.second;
@@ -87,6 +132,7 @@ QueryResults GeneralScoring::score(const BowVector& _Vec,
             }
         } // for each inverted row
     } // for each query word
+#endif
     QueryResults ret;
     ret.reserve(scores.size());
     for(auto& pair : scores) {

@@ -49,7 +49,7 @@ so, delete this exception statement from your version.  */
    * Last Modified : smallchimney
    * Modified Time : 2020-01-12 20:48:08
 ************************************************************************* */
-#include <TDBoW/utils/progress.h>
+#include <TDBoW/utils/BarProgress.h>
 
 namespace TDBoW {
 
@@ -273,4 +273,4 @@ void BarProgress::updateImage(const double& _TimeStamp) {
     *p = '\0';
 }
 
-}}  // namespace TDBoW
+}  // namespace TDBoW

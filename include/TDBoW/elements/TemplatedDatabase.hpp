@@ -57,8 +57,8 @@
 #ifndef __ROCKAUTO_TDBOW_TEMPLATED_DATABASE_HPP__
 #define __ROCKAUTO_TDBOW_TEMPLATED_DATABASE_HPP__
 
-#include "elements/IndexedFile.h"
-#include "elements/QueryResults.h"
+#include "IndexedFile.h"
+#include "QueryResults.h"
 #include "TemplatedVocabulary.hpp"
 
 namespace TDBoW {

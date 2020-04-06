@@ -56,6 +56,39 @@ void FeatureVector::addFeature(NodeId _ID, size_t _FeatureIdx) {
 
 // ---------------------------------------------------------------------------
 
+FeatureVector& FeatureVector::operator+=(const FeatureVector& _Another) {
+    if(_Another.m_bLocked) {
+        while(true) {
+            bool excepted = false;
+            if(_Another.m_bLocked.compare_exchange_strong(excepted, true)) {
+                break;
+            }
+        }
+    }
+    SpinLock locker(m_bLocked);
+    auto iter1 = this -> begin();
+    auto iter2 = _Another.begin();
+    while(iter1 != this -> end() && iter2 != _Another.end()) {
+        if(iter1 -> first == iter2 -> first) {
+            auto& list1 = iter1 -> second;
+            const auto& list2 = iter2 -> second;
+            list1.insert(list1.end(), list2.begin(), list2.end());
+            iter1++, iter2++;
+        } else if(iter1 -> first < iter2 -> first) {
+            iter1 = this -> lower_bound(iter2 -> first);
+        } else {
+            this -> insert(this -> end(), *iter2++);
+        }
+    }
+    while(iter2 != _Another.end()) {
+        this -> insert(this -> end(), *iter2++);
+    }
+    _Another.m_bLocked = false;
+    return *this;
+}
+
+// ---------------------------------------------------------------------------
+
 std::ostream& operator <<(std::ostream& _Out,
         const FeatureVector::value_type& pair) {
     _Out << '<' << pair.first << ": [";

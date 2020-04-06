@@ -98,6 +98,15 @@ public:
     void addFeature(NodeId _ID, size_t _FeatureIdx);
 
     /**
+     * @brief  Merge two FeatureVector into one, this is only used for merge small parts
+	 *         of FeatureVector into a complete one
+     * @author smallchimney
+     * @param  _Another  Another feature vector
+     * @return           Combined feature vector
+     */
+    FeatureVector& operator+=(const FeatureVector& _Another);
+
+    /**
      * @brief Sends a string versions of the feature vector through the stream
      * @param _Out stream
      * @param _Vec feature vector

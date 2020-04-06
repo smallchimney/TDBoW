@@ -51,13 +51,13 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-11-20 10:37:21
    * Last Modified : smallchimney
-   * Modified Time : 2020-01-10 17:54:04
+   * Modified Time : 2020-04-02 18:15:43
 ************************************************************************* */
 #ifndef __ROCKAUTO_TDBOW_TEMPLATED_DESCRIPTOR_HPP__
 #define __ROCKAUTO_TDBOW_TEMPLATED_DESCRIPTOR_HPP__
 
-#include "utils/traits.h"
-#include "utils/Exception.h"
+#include <TDBoW/utils/traits.h>
+#include <TDBoW/utils/Exception.h>
 
 #include <iostream>
 #include <vector>
@@ -119,6 +119,10 @@ public:
             const std::vector<DescriptorConstPtr>&)> MeanCallback;
     typedef std::function<distance_type(
             const Descriptor& _A, const Descriptor& _B)> DistanceCallback;
+
+    /** @brief No need of instance for pure utility class */
+    TemplatedDescriptorUtil() = delete;
+    ~TemplatedDescriptorUtil() = delete;
 
     /** @brief The "images by features" data */
     typedef std::vector<std::vector<DescriptorPtr>>      DataSet;
@@ -213,6 +217,7 @@ public:
         }
         return _Callback(_Descriptors);
     }
+
     /**
      * @breif  Accord to type of descriptors,choice the corresponding mean function
      * @author smallchimney
@@ -245,6 +250,7 @@ public:
         assert(_Callback != nullptr);
         return _Callback(_A, _B);
     }
+
     /**
      * @breif  Accord to type of descriptors,choice the corresponding distance function
      * @author smallchimney
@@ -264,6 +270,7 @@ public:
                                   "a processing function must be explicitly specified."));
         }
     }
+
     /**
      * @breif  Change matrix to a binary
      * @author smallchimney
@@ -272,6 +279,7 @@ public:
      */
     template <typename Matrix>
     static void toBinary(const Matrix& _Mat, std::ostream& _Out);
+
     /**
      * @breif  Read binary data then change to matrix
      * @author smallchimney
@@ -280,6 +288,7 @@ public:
      */
     template <typename Matrix>
     static void fromBinary(std::istream& _In, Matrix& _Mat);
+
     /**
      * @breif  Change descriptor to string
      * @author smallchimney
@@ -287,6 +296,7 @@ public:
      * @return        The string of the descriptor
      */
     static std::string toString(const Descriptor& _Desc);
+
     /**
      * @breif  change the string data to descriptor
      * @author smallchimney
@@ -294,6 +304,7 @@ public:
      * @param  _Desc(out) The descriptor
      */
     static void fromString(const std::string& _In, Descriptor& _Desc) noexcept(false);
+
     /**
      * @breif  Visual the reasult of the BinaryDescriptor
      * @author smallchimney
@@ -302,6 +313,7 @@ public:
      */
     static std::ostream& visualBinary(std::ostream& _Out,
             const BinaryDescriptor& _Descriptor);
+
     /**
      * @breif  Visual the reasult of A array of BinaryDescriptor
      * @author smallchimney
@@ -671,11 +683,11 @@ unsigned hex2int(const char& _Ch) noexcept(false) {
 template<typename TScalar, size_t L>
 std::string TemplatedDescriptorUtil<TScalar, L>::toHex(
         const binary_type& _Data) noexcept {
-    static std::stringstream ss;
-    ss.clear(); ss.str("");
-    ss << int2hex(static_cast<unsigned>(_Data / 16));
-    ss << int2hex(static_cast<unsigned>(_Data % 16));
-    return ss.str();
+    char buf[3];
+    buf[2] = '\0';
+    buf[0] = int2hex(static_cast<unsigned>(_Data / 16));
+    buf[1] = int2hex(static_cast<unsigned>(_Data % 16));
+    return buf;
 }
 
 template<typename TScalar, size_t L>
@@ -747,39 +759,39 @@ namespace internal {
  * @brief typedef for others class
  */
 #define TDBOW_DESCRIPTOR_DEF(Util) \
-    typedef typename Util :: distance_type            distance_type;\
-    typedef typename Util :: Descriptor               Descriptor;\
-    typedef typename Util :: DescriptorPtr            DescriptorPtr;\
-    typedef typename Util :: DescriptorConstPtr       DescriptorConstPtr;\
-    typedef typename Util :: Descriptors              Descriptors;\
-    typedef typename Util :: DescriptorsPtr           DescriptorsPtr;\
-    typedef typename Util :: DescriptorsConstPtr      DescriptorsConstPtr;\
-    typedef typename Util :: DescriptorArray          DescriptorArray;\
-    typedef typename Util :: DescriptorArrayPtr       DescriptorArrayPtr;\
-    typedef typename Util :: DescriptorArrayConstPtr  DescriptorArrayConstPtr;\
-    typedef typename Util :: DescriptorsArray         DescriptorsArray;\
-    typedef typename Util :: DescriptorsArrayPtr      DescriptorsArrayPtr;\
-    typedef typename Util :: DescriptorsArrayConstPtr DescriptorsArrayConstPtr;\
-    typedef typename Util :: DescriptorsSet           DescriptorsSet;\
-    typedef typename Util :: DescriptorsSetPtr        DescriptorsSetPtr;\
-    typedef typename Util :: DescriptorsSetConstPtr   DescriptorsSetConstPtr;\
-    typedef typename Util :: BinaryDescriptor               BinaryDescriptor;\
-    typedef typename Util :: BinaryDescriptorPtr            BinaryDescriptorPtr;\
-    typedef typename Util :: BinaryDescriptorConstPtr       BinaryDescriptorConstPtr;\
-    typedef typename Util :: BinaryDescriptors              BinaryDescriptors;\
-    typedef typename Util :: BinaryDescriptorsPtr           BinaryDescriptorsPtr;\
-    typedef typename Util :: BinaryDescriptorsConstPtr      BinaryDescriptorsConstPtr;\
-    typedef typename Util :: BinaryDescriptorArray          BinaryDescriptorArray;\
-    typedef typename Util :: BinaryDescriptorArrayPtr       BinaryDescriptorArrayPtr;\
-    typedef typename Util :: BinaryDescriptorsArrayConstPtr BinaryDescriptorArrayConstPtr;\
-    typedef typename Util :: BinaryDescriptorsArray         BinaryDescriptorsArray;\
-    typedef typename Util :: BinaryDescriptorsArrayPtr      BinaryDescriptorsArrayPtr;\
-    typedef typename Util :: BinaryDescriptorsArrayConstPtr BinaryDescriptorsArrayConstPtr;\
-    typedef typename Util :: BinaryDescriptorsSet           BinaryDescriptorsSet;\
-    typedef typename Util :: BinaryDescriptorsSetPtr        BinaryDescriptorsSetPtr;\
-    typedef typename Util :: BinaryDescriptorsSetConstPtr   BinaryDescriptorsSetConstPtr;\
-    typedef typename Util :: DataSet      DataSet;\
-    typedef typename Util :: ConstDataSet ConstDataSet;
+    typedef typename Util::distance_type            distance_type;\
+    typedef typename Util::Descriptor               Descriptor;\
+    typedef typename Util::DescriptorPtr            DescriptorPtr;\
+    typedef typename Util::DescriptorConstPtr       DescriptorConstPtr;\
+    typedef typename Util::Descriptors              Descriptors;\
+    typedef typename Util::DescriptorsPtr           DescriptorsPtr;\
+    typedef typename Util::DescriptorsConstPtr      DescriptorsConstPtr;\
+    typedef typename Util::DescriptorArray          DescriptorArray;\
+    typedef typename Util::DescriptorArrayPtr       DescriptorArrayPtr;\
+    typedef typename Util::DescriptorArrayConstPtr  DescriptorArrayConstPtr;\
+    typedef typename Util::DescriptorsArray         DescriptorsArray;\
+    typedef typename Util::DescriptorsArrayPtr      DescriptorsArrayPtr;\
+    typedef typename Util::DescriptorsArrayConstPtr DescriptorsArrayConstPtr;\
+    typedef typename Util::DescriptorsSet           DescriptorsSet;\
+    typedef typename Util::DescriptorsSetPtr        DescriptorsSetPtr;\
+    typedef typename Util::DescriptorsSetConstPtr   DescriptorsSetConstPtr;\
+    typedef typename Util::BinaryDescriptor               BinaryDescriptor;\
+    typedef typename Util::BinaryDescriptorPtr            BinaryDescriptorPtr;\
+    typedef typename Util::BinaryDescriptorConstPtr       BinaryDescriptorConstPtr;\
+    typedef typename Util::BinaryDescriptors              BinaryDescriptors;\
+    typedef typename Util::BinaryDescriptorsPtr           BinaryDescriptorsPtr;\
+    typedef typename Util::BinaryDescriptorsConstPtr      BinaryDescriptorsConstPtr;\
+    typedef typename Util::BinaryDescriptorArray          BinaryDescriptorArray;\
+    typedef typename Util::BinaryDescriptorArrayPtr       BinaryDescriptorArrayPtr;\
+    typedef typename Util::BinaryDescriptorsArrayConstPtr BinaryDescriptorArrayConstPtr;\
+    typedef typename Util::BinaryDescriptorsArray         BinaryDescriptorsArray;\
+    typedef typename Util::BinaryDescriptorsArrayPtr      BinaryDescriptorsArrayPtr;\
+    typedef typename Util::BinaryDescriptorsArrayConstPtr BinaryDescriptorsArrayConstPtr;\
+    typedef typename Util::BinaryDescriptorsSet           BinaryDescriptorsSet;\
+    typedef typename Util::BinaryDescriptorsSetPtr        BinaryDescriptorsSetPtr;\
+    typedef typename Util::BinaryDescriptorsSetConstPtr   BinaryDescriptorsSetConstPtr;\
+    typedef typename Util::DataSet      DataSet;\
+    typedef typename Util::ConstDataSet ConstDataSet;
 
 }   // namespace TDBoW
 

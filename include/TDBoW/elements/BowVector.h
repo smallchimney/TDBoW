@@ -152,6 +152,15 @@ public:
 	void addIfNotExist(WordId _ID, WordValue _Val);
 
 	/**
+	 * @brief  Merge two BowVector into one, this is only used for merge small parts
+	 *         of BowVector into a complete one
+	 * @author smallchimney
+	 * @param _Another  Another bow vector
+	 * @return          Combined bow vector
+	 */
+	BowVector& operator+=(const BowVector& _Another);
+
+	/**
 	 * @brief L1-Normalizes the values in the vector
 	 * @param _NormType   L1 or L2
 	 */

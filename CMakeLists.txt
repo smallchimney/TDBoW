@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 2.8.12)
 project(tdbow)
 
 ####################
@@ -36,7 +36,7 @@ endif()
 ## uncomment below when develop new utility or framework
 #SET(CMAKE_CXX_FLAGS "-O0 -g ${CMAKE_CXX_FLAGS}")
 ## comment below when develop new utility or framework
-SET(CMAKE_CXX_FLAGS "-O2 ${CMAKE_CXX_FLAGS}")
+SET(CMAKE_CXX_FLAGS "-O3 ${CMAKE_CXX_FLAGS}")
 
 ###################
 ## find packages ##

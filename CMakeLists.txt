@@ -96,12 +96,12 @@ set(EXTRA_LIBS yaml-cpp ${EXTRA_LIBS})
 ###################################
 ## catkin specific configuration ##
 ###################################
-catkin_package(
-    INCLUDE_DIRS include libs/quicklz
-    LIBRARIES ${PROJECT_NAME}
-)
-
 if(catkin_FOUND)
+  catkin_package(
+      INCLUDE_DIRS include libs/quicklz
+      LIBRARIES ${PROJECT_NAME}
+  )
+
   link_libraries(
       ${catkin_LIBRARIES}
   )

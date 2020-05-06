@@ -26,11 +26,57 @@ The main differences with the previous DBow2 library are:
   compile version less than c++11.
   * Stop words won't lose IDF information any more.
 
-TDBoW requires Eigen, yaml-cpp and Boost-filesystem.
-
-(Still work-in-progress) TDBoW, along with DLoopDetector, has been tested on several real datasets,
+(Still work-in-progress) TDBoW, along with TDLoopDetector, has been tested on several real datasets,
 yielding an execution time of 3 ms to convert the BRIEF features of an image into a bag-of-words vector
 and 5 ms to look for image matches in a database with more than 19000 images.
+
+## Getting Started
+
+TDBoW requires Eigen, FLANN, yaml-cpp and Boost-filesystem.
+
+### Prerequisites
+
+This is only valid in Debian Systems, other platform should manually install these tools.
+Note that all the prerequisites are included in ROS-desktop-full, so ROS users can skip this.
+
+TDBoW use CMake to compile
+
+```bash
+sudo apt install build-essential cmake
+```
+
+Several thirdparty libraries are required
+
+```bash
+sudo apt install libboost-filesystem-dev libflann-dev libyaml-cpp-dev libeigen3-dev
+```
+
+(Optional) TDBoW can be used as a catkin package, so catkin is also supported
+
+```bash
+sudo apt install catkin
+sudo apt install python-catkin-tools    # (Optional) Require ROS apt source
+```
+
+(Optional) We implement the TDBoW in both PC (3D) and CV (2D) mode, so the features extraction libraries is up to your application, [PCL](https://github.com/PointCloudLibrary/pcl) and [OpenCV](https://github.com/opencv/opencv) is recommended.
+
+### Installing
+
+Using CMake
+
+```bash
+git clone https://github.com/smallchimney/TDBoW.git
+mkdir TDBoW/build && cd TDBoW/build
+cmake ..
+make -j
+```
+
+Using Catkin, catkin workspace is required
+
+```bash
+git clone https://github.com/smallchimney/TDBoW.git
+catkin build  # Or you can use native catkin_make
+```
 
 ## Citing
 

@@ -5,8 +5,8 @@ project(tdbow)
 ## Option setting ##
 ####################
 
-option(BUILD_TDBOW_PC_Demo "Build PC demo" ON)
-option(BUILD_TDBOW_CV_Demo "Build CV demo" ON)
+option(BUILD_TDBOW_PC_Demo "Build PC demo" OFF)
+option(BUILD_TDBOW_CV_Demo "Build CV demo" OFF)
 option(ABSOLUTE_LOG    "Log absolute path" ON)
 
 if(NOT ABSOLUTE_LOG)
@@ -41,7 +41,7 @@ SET(CMAKE_CXX_FLAGS "-O3 ${CMAKE_CXX_FLAGS}")
 ###################
 ## find packages ##
 ###################
-find_package(catkin REQUIRED)
+find_package(catkin QUIET)
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
 
@@ -49,16 +49,16 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODUL
 
 # Manually resolve removed dependend packages
 find_package(Eigen3 QUIET)
-if (NOT EIGEN3_FOUND)
+if(NOT EIGEN3_FOUND)
   # Fallback to cmake_modules
   find_package(cmake_modules REQUIRED)
   find_package(Eigen REQUIRED)
   set(EIGEN3_INCLUDE_DIRS ${EIGEN_INCLUDE_DIRS})
   set(EIGEN3_LIBRARIES ${EIGEN_LIBRARIES})  # Not strictly necessary as Eigen is head only
   # Possibly map additional variables to the EIGEN3_ prefix.
-else ()
+else()
   set(EIGEN3_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIR})
-endif ()
+endif()
 
 find_package(Boost REQUIRED COMPONENTS filesystem)
 if(NOT (Boost_VERSION VERSION_LESS "106000"))
@@ -101,9 +101,11 @@ catkin_package(
     LIBRARIES ${PROJECT_NAME}
 )
 
-link_libraries(
-    ${catkin_LIBRARIES}
-)
+if(catkin_FOUND)
+  link_libraries(
+      ${catkin_LIBRARIES}
+  )
+endif()
 
 ## Setting TDBoW context
 set(TDBoW_INC include/TDBoW)
@@ -158,10 +160,12 @@ endif()
 #############
 # Install all targets, headers by default and scripts and other files if specified (folders or files)
 
-install(TARGETS ${PROJECT_NAME}
-        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
+if(catkin_FOUND)
+  install(TARGETS ${PROJECT_NAME}
+          ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+          LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+          RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
 
-install(FILES ${TDBoW_HDRS} ${QUICKLZ_HDR}
-        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+  install(FILES ${TDBoW_HDRS} ${QUICKLZ_HDR}
+          DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+endif()

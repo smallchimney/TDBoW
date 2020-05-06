@@ -54,7 +54,7 @@ sudo apt install libboost-filesystem-dev libflann-dev libyaml-cpp-dev libeigen3-
 (Optional) TDBoW can be used as a catkin package, so catkin is also supported
 
 ```bash
-sudo apt install catkin
+sudo apt install catkin python-nose
 sudo apt install python-catkin-tools    # (Optional) Require ROS apt source
 ```
 

@@ -29,8 +29,6 @@
  * This library requires the Eigen, FLANN, yaml-cpp
  * and Boost libraries.
  *
- * This library already included quicklz library
- *
  * For better experience, feature extraction libraries
  * such as OpenCV or PCL are recommend to use.
  *

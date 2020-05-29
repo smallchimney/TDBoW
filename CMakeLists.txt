@@ -72,6 +72,19 @@ set(EXTRA_INCS ${FLANN_INCLUDE_DIRS} ${EXTRA_INCS})
 set(EXTRA_LIBS ${FLANN_LIBRARIES} ${EXTRA_LIBS})
 add_definitions(${FLANN_DEFINITIONS})
 
+## Since the FLANN lib already include one copy of LZ4,
+## which is written in C, and simply use `#pragma once`.
+## So here we do NOT include LZ4 to avoid conflict.
+## Note that, the following headers contain LZ4 internal,
+## duplicate include for LZ4 will crash in compile:
+##     <TDBoW/TDBoW.h>
+##     <TDBoW/PCBridge.h>
+##     <TDBoW/CVBridge.h>
+##     <TDBoW/elements/TemplatedDatabase.hpp>
+##     <TDBoW/elements/TemplatedVocabulary.hpp>
+##     <TDBoW/util/TemplatedKMeans.h>
+
+# OpenMP is optional
 find_package(OpenMP QUIET)
 if(OPENMP_FOUND)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -82,14 +95,6 @@ endif()
 
 ## Setting the extra libraries
 
-## QuickLZ lib is installed
-set(QUICKLZ_INC libs/quicklz)
-set(QUICKLZ_HDR libs/quicklz/quicklz.h)
-set(QUICKLZ_SRC libs/quicklz/quicklz.c)
-set(EXTRA_INCS ${QUICKLZ_INC} ${EXTRA_INCS})
-set(EXTRA_HDRS ${QUICKLZ_HDR} ${EXTRA_HDRS})
-set(EXTRA_SRCS ${QUICKLZ_SRC} ${EXTRA_SRCS})
-
 ## Yaml-cpp is required
 set(EXTRA_LIBS yaml-cpp ${EXTRA_LIBS})
 
@@ -98,7 +103,7 @@ set(EXTRA_LIBS yaml-cpp ${EXTRA_LIBS})
 ###################################
 if(catkin_FOUND)
   catkin_package(
-      INCLUDE_DIRS include libs/quicklz
+      INCLUDE_DIRS include
       LIBRARIES ${PROJECT_NAME}
   )
 
@@ -166,6 +171,6 @@ if(catkin_FOUND)
           LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
           RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
 
-  install(FILES ${TDBoW_HDRS} ${QUICKLZ_HDR}
+  install(FILES ${TDBoW_HDRS}
           DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
 endif()

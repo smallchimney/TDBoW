@@ -17,7 +17,8 @@ The main differences with the previous DBow2 library are:
   this won't perform better when in few descriptors. Multiple threads
   query for different is support. 
   * TDBoW add binary I/O support, and compress the vocabulary using
-  QuickLZ algorithm in default when binary output. On the other hand,
+  LZ4 algorithm in default when binary output, which is included by
+  FLANN. On the other hand,
   it can still use YAML format for friendly reading. Specially, the
   DBoW2 vocabulary is supported for reading.
   * TDBoW using k-means Ⅱ replaced k-means++.
@@ -113,7 +114,7 @@ When using yaml format, you can also load the vocabulary data from file opened w
 structure.
 
 You can save the vocabulary with any file extension. If you using binary(default), the data will default
-to be compressed by QuickLZ algorithm.
+to be compressed by LZ4 algorithm.
 
 ## Implementation notes
 

@@ -68,7 +68,6 @@
 #include "TemplatedTask.hpp"
 #include <TDBoW/utils/TemplatedKMeans.hpp>
 #include <TDBoW/utils/TemplatedCheckPoint.hpp>
-#include <quicklz.h>
 
 #include <boost/dynamic_bitset.hpp>
 #include <yaml-cpp/yaml.h>
@@ -1051,7 +1050,7 @@ void TemplatedVocabulary<TScalar, DescL>::load(
             std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
             if(extension == ".yaml" || extension == ".yml") {
                 loadYAML(file);
-//            } else if(extension == ".bin" || extension == ".qp") {
+//            } else if(extension == ".bin" || extension == ".lz4") {
 //                loadBinary(file);
             } else {
                 loadBinary(file);
@@ -1291,8 +1290,7 @@ void TemplatedVocabulary<TScalar, DescL>::write(
     }
 
     if(_Compressed) {
-        qlz_state_compress state;
-        memset(&state, 0, sizeof(qlz_state_compress));
+        LZ4_streamHC_t lz4Stream = {0};
         auto chunkSize = static_cast<size_t>(CHUNK_SIZE);
         std::vector<char> compressed(chunkSize + 512, 0);
         std::vector<char> chunkBuf(chunkSize, 0);
@@ -1304,8 +1302,11 @@ void TemplatedVocabulary<TScalar, DescL>::write(
         while(leftBufSize) {
             chunkSize = std::min(chunkSize, leftBufSize);
             streamBuf.read(&chunkBuf[0], chunkSize);
-            auto len = qlz_compress(&chunkBuf[0], &compressed[0], chunkSize, &state);
+            const auto len = static_cast<int32_t>(LZ4_compress_HC_continue(&lz4Stream,
+                    &chunkBuf[0], &compressed[0], static_cast<int>(chunkSize),
+                    static_cast<int>(compressed.capacity())));
             leftBufSize -= chunkSize;
+            _Out.write((char*)&len, sizeof(len));
             _Out.write(&compressed[0], len);
         }
     } else {
@@ -1334,18 +1335,18 @@ void TemplatedVocabulary<TScalar, DescL>::read(std::istream& _In) noexcept(false
     std::istream* in = &_In;
     std::stringstream decompressStream; // used only in compressed mode
     if(compressed) {
-        qlz_state_decompress state;
-        memset(&state, 0, sizeof(qlz_state_decompress));
-        auto chunkSize = static_cast<size_t>(CHUNK_SIZE);
-        std::vector<char> decompressed(chunkSize);
-        std::vector<char> chunkBuf(chunkSize + 512);
+        LZ4_streamDecode_t lz4Stream = {0};
+        auto chunkSize = static_cast<int32_t>(CHUNK_SIZE);
+        std::vector<char> decompressed(static_cast<size_t>(chunkSize));
+        std::vector<char> chunkBuf(static_cast<size_t>(chunkSize + 512));
         size_t chunkNum;
         in -> read((char*)&chunkNum, sizeof(chunkNum));
         for(size_t i = 0; i < chunkNum; i++) {
-            in -> read(&chunkBuf[0], 9);
-            size_t len = qlz_size_compressed(&chunkBuf[0]);
-            in -> read(&chunkBuf[9], len - 9);
-            len = qlz_decompress(&chunkBuf[0], &decompressed[0], &state);
+            in -> read((char*)&chunkSize, sizeof(chunkSize));
+            in -> read(&chunkBuf[0], chunkSize);
+            const int len = LZ4_decompress_safe_continue(&lz4Stream,
+                    &chunkBuf[0], &decompressed[0], chunkSize,
+                    static_cast<int>(decompressed.capacity()));
             decompressStream.write(&decompressed[0], len);
         }
         in = &decompressStream;

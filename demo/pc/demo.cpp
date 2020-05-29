@@ -19,7 +19,7 @@
    * Author Email  : smallchimney@foxmail.com
    * Created Time  : 2019-12-05 16:55:11
    * Last Modified : smallchimney
-   * Modified Time : 2020-01-08 21:33:12
+   * Modified Time : 2020-05-29 14:29:18
 ************************************************************************* */
 // TDBoW and template typedef
 #include <TDBoW/PCBridge.h>
@@ -209,7 +209,7 @@ void testVocabCreation(const ConstDataSet& _DataSet,
 
     // save the vocabulary to disk
     cout << endl << "Saving vocabulary..." << endl;
-    voc.save("small_voc.bin.qp");
+    voc.save("small_voc.bin.lz4");
     // voc.save("small_voc.yml", false); // save in YAML format
     cout << "Done" << endl;
 }
@@ -219,7 +219,7 @@ void testVocabCreation(const ConstDataSet& _DataSet,
 void testDatabase(const DescriptorsSet& _Features) {
     cout << "Creating a small database..." << endl;
     // load the vocabulary from disk
-    Database db("small_voc.bin.qp", false); // false = do not use direct index
+    Database db("small_voc.bin.lz4", false); // false = do not use direct index
     // (so ignore the last param)
     // The direct index is useful if we want to retrieve the features that
     // belong to some vocabulary node.

@@ -141,7 +141,7 @@ void testVocabCreation(const ConstDataSet& _DataSet, const DescriptorsArray& _Fe
 
     // save the vocabulary to disk
     cout << endl << "Saving vocabulary..." << endl;
-    voc.save("small_voc.bin.qp");
+    voc.save("small_voc.bin.lz4");
     // voc.save("small_voc.yml", false); // save in YAML format
     cout << "Done" << endl;
 }
@@ -151,7 +151,7 @@ void testVocabCreation(const ConstDataSet& _DataSet, const DescriptorsArray& _Fe
 void testDatabase(const DescriptorsArray& _Features) {
     cout << "Creating a small database..." << endl;
     // load the vocabulary from disk
-    Database db("small_voc.bin.qp", false); // false = do not use direct index
+    Database db("small_voc.bin.lz4", false); // false = do not use direct index
     // (so ignore the last param)
     // The direct index is useful if we want to retrieve the features that
     // belong to some vocabulary node.
